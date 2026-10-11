@@ -49,6 +49,25 @@ tiles, so that scale is a guess; `--side` changes it.
     teglon --strict         the strict game (see below)
     teglon --snapshot out.bmp --time 60 --size 1920x1080
 
+## Gallery
+
+One show from start to finish: four solutions, each laid over the last.
+
+| | |
+|---|---|
+| ![](docs/screenshots/01-first-tiles.png) | ![](docs/screenshots/02-laying-terracotta.png) |
+| The first tiles on bare marble | About half paved |
+| ![](docs/screenshots/03-nearly-done.png) | ![](docs/screenshots/04-light-on-the-groove.png) |
+| The last corner still open | Finished, light running along the groove |
+| ![](docs/screenshots/05-green-over-terracotta.png) | ![](docs/screenshots/06-brown-over-green.png) |
+| Green going down over terra-cotta | Brown over green |
+| ![](docs/screenshots/07-white-porcelain-over-brown.png) | ![](docs/screenshots/08-white-finished.png) |
+| White porcelain with the black line | The finished white Decagon |
+| ![](docs/screenshots/09-strict-game-solved.png) | ![](docs/screenshots/10-closeup.png) |
+| The strict game, solved | Tiles and groove up close |
+
+4K wallpapers: [terra-cotta](docs/screenshots/wallpaper-4k-terracotta.png), [white porcelain](docs/screenshots/wallpaper-4k-white.png).
+
 ## Install
 
 Packages are on the [releases page](../../releases).
