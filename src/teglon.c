@@ -33,8 +33,8 @@
 #define MAXV TG_MAXV
 #define MAXT TG_MAXT
 
-const char *tg_name[NS] = {"thin rhomb", "thick rhomb", "pentagon", "long hexagon", "squat hexagon", "octagon", "decagon"};
-const int tg_nside[NS] = {4, 4, 5, 6, 6, 8, 10};
+const char *tg_name[NS] = {"thin rhomb", "thick rhomb", "pentagon", "long hexagon", "squat hexagon", "octagon", "decagon", "bow tie"};
+const int tg_nside[NS] = {4, 4, 5, 6, 6, 8, 10, 6};
 /* exterior turn at each vertex, in units of 36 degrees */
 static const int TURN[NS][MAXV] = {
     {4, 1, 4, 1},
@@ -44,14 +44,15 @@ static const int TURN[NS][MAXV] = {
     {2, 2, 1, 2, 2, 1},
     {2, 1, 1, 1, 2, 1, 1, 1},
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {3, 3, -1, 3, 3, -1}, /* bow tie: not convex, two 216 degree corners */
 };
 static int BD[NS][MAXV]; /* direction of side j in the base orientation */
 
-int tg_ga[NS] = {0, 0, 0, 0, 0, 0, 0};
-int tg_gb[NS] = {1, 1, 1, 1, 1, 1, 1};
-int tg_fixed[NS] = {1, 1, 1, 1, 1, 1, 1};
-int tg_enabled[NS] = {1, 1, 1, 1, 1, 1, 1};
-double tg_weight[NS] = {1, 1, 1, 1, 1, 1, 1};
+int tg_ga[NS] = {0, 0, 0, 0, 0, 0, 0, 0};
+int tg_gb[NS] = {1, 1, 1, 1, 1, 1, 1, 1};
+int tg_fixed[NS] = {1, 1, 1, 1, 1, 1, 1, 1};
+int tg_enabled[NS] = {1, 1, 1, 1, 1, 1, 1, 0}; /* the bow tie is opt-in */
+double tg_weight[NS] = {1, 1, 1, 1, 1, 1, 1, 1};
 
 int tg_strict = 0;
 TgTile *tg_tile;
@@ -174,12 +175,22 @@ static void build(TgTile *t, int s, int rot, Pt v0)
         t->x[j] = px(t->v[j]); t->y[j] = py(t->v[j]);
         t->cx += t->x[j] / n; t->cy += t->y[j] / n;
     }
+    /* extents along the five edge normals; a bow tie is two convex halves joined at its waist */
+    static const int HALF_A[4] = {5, 0, 1, 2}, HALF_B[4] = {2, 3, 4, 5};
+    int bow = (s == 7);
     for (int a = 0; a < 5; a++) {
-        t->lo[a] = 1e30; t->hi[a] = -1e30;
-        for (int j = 0; j < n; j++) {
+        t->lo[a] = t->lo2[a] = 1e30; t->hi[a] = t->hi2[a] = -1e30;
+        for (int q = 0; q < (bow ? 4 : n); q++) {
+            int j = bow ? HALF_A[q] : q;
             double p = t->x[j] * AXX[a] + t->y[j] * AXY[a];
             if (p < t->lo[a]) t->lo[a] = p;
             if (p > t->hi[a]) t->hi[a] = p;
+        }
+        for (int q = 0; bow && q < 4; q++) {
+            int j = HALF_B[q];
+            double p = t->x[j] * AXX[a] + t->y[j] * AXY[a];
+            if (p < t->lo2[a]) t->lo2[a] = p;
+            if (p > t->hi2[a]) t->hi2[a] = p;
         }
     }
 }
@@ -198,15 +209,23 @@ static int tjunction(const TgTile *a, const TgTile *b) /* vertex of a inside an 
         }
     return 0;
 }
-static int overlap(const TgTile *t, const TgTile *o) /* 2 overlap, 1 touching, 0 apart */
+static int overlap1(const double *lo, const double *hi, const double *lo2, const double *hi2)
 {
     int over = 1;
     for (int a = 0; a < 5; a++) {
-        double ov = fmin(t->hi[a], o->hi[a]) - fmax(t->lo[a], o->lo[a]);
+        double ov = fmin(hi[a], hi2[a]) - fmax(lo[a], lo2[a]);
         if (ov < -EPS) return 0;
         if (ov < EPS) over = 0;
     }
     return over ? 2 : 1;
+}
+static int overlap(const TgTile *t, const TgTile *o) /* 2 overlap, 1 touching, 0 apart */
+{
+    int r = overlap1(t->lo, t->hi, o->lo, o->hi), q;
+    if (t->s == 7 && (q = overlap1(t->lo2, t->hi2, o->lo, o->hi)) > r) r = q;
+    if (o->s == 7 && (q = overlap1(t->lo, t->hi, o->lo2, o->hi2)) > r) r = q;
+    if (t->s == 7 && o->s == 7 && (q = overlap1(t->lo2, t->hi2, o->lo2, o->hi2)) > r) r = q;
+    return r;
 }
 
 /* does the tile fit: inside the decagon, on free ground, edge to edge */

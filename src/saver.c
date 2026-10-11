@@ -37,7 +37,7 @@ static const Palette PAL[4] = {
     {{134, 94, 64}, {86, 58, 38}, {22, 13, 7}, {255, 205, 155}},       /* brown */
     {{222, 218, 208}, {168, 164, 156}, {22, 22, 26}, {120, 190, 255}}, /* white porcelain, black glaze */
 };
-static const double SHADE[TG_NS] = {1.00, 0.93, 1.08, 0.88, 0.97, 0.84, 1.05};
+static const double SHADE[TG_NS] = {1.00, 0.93, 1.08, 0.88, 0.97, 0.84, 1.05, 0.90};
 static const Rgb BG = {18, 16, 14}, MARBLE = {196, 190, 178}, MARBLE_EDGE = {120, 114, 104};
 
 /* ---- geometry buffer ---- */
@@ -129,7 +129,7 @@ static int *p_order, *p_in, *p_out, p_len; /* the finished groove */
 static uint64_t seed_state;
 
 /* the one groove layout for which the strict game can be finished (side 2) */
-static const int STRICT_A[TG_NS] = {0, 1, 0, 0, 2, 0, 0}, STRICT_B[TG_NS] = {1, 2, 1, 2, 5, 3, 5};
+static const int STRICT_A[TG_NS] = {0, 1, 0, 0, 2, 0, 0, 0}, STRICT_B[TG_NS] = {1, 2, 1, 2, 5, 3, 5, 1};
 
 static uint64_t next_rand(void)
 {

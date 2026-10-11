@@ -19,7 +19,8 @@ static void usage(void)
         "  -a N         give up after N attempts (default 0 = keep going)\n"
         "  -g GROOVES   strict puzzle: one fixed groove per mould, given as side pairs,\n"
         "               e.g. 01,12,01,02,25,03,05 (xx lets the search choose that groove)\n"
-        "  -x MOULDS    moulds to leave out, by number 0-6, e.g. -x 6\n"
+        "  -x MOULDS    shapes to leave out, by number 0-6, e.g. -x 6\n"
+        "  -m MOULDS    use exactly these shapes, e.g. -m 1234567 (7 is the girih bow tie)\n"
         "  -w WEIGHTS   preference per mould, e.g. 1,1,2,1,1,1,0.2\n"
         "  --svg FILE   write the solution as an SVG picture\n"
         "  -q           no summary on stderr\n");
@@ -33,7 +34,7 @@ static void print_tile(FILE *f, const TgTile *t, int in, int out)
     fputc('\n', f);
 }
 
-static const char *FILL[TG_NS] = {"#d9a066", "#c97b4a", "#e8c07d", "#b5673c", "#cf9257", "#a85a32", "#e0b070"};
+static const char *FILL[TG_NS] = {"#d9a066", "#c97b4a", "#e8c07d", "#b5673c", "#cf9257", "#a85a32", "#e0b070", "#bf8050"};
 
 static void write_svg(const char *path, const int *order, const int *in, const int *out, int n)
 {
@@ -91,6 +92,10 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-b")) budget = atol(argv[++i]);
         else if (!strcmp(argv[i], "-a")) attempts = atol(argv[++i]);
         else if (!strcmp(argv[i], "--svg")) svg = argv[++i];
+        else if (!strcmp(argv[i], "-m")) {
+            for (int s = 0; s < TG_NS; s++) tg_enabled[s] = 0;
+            for (char *p = argv[++i]; *p; p++) if (*p >= '0' && *p < '0' + TG_NS) tg_enabled[*p - '0'] = 1;
+        }
         else if (!strcmp(argv[i], "-x")) { for (char *p = argv[++i]; *p; p++) if (*p >= '0' && *p < '0' + TG_NS) tg_enabled[*p - '0'] = 0; }
         else if (!strcmp(argv[i], "-g")) {
             char *p = argv[++i];

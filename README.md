@@ -59,6 +59,32 @@ Each of those searches fails within about twenty tiles of the first vertex, so t
 obstruction is local to the corner and larger decagons should fail the same way.
 That is a computed result for this set of shapes, not a statement about the novel.
 
+### Where the puzzle comes from
+
+Nobody has published a reconstruction of the Teglon tiles, and there is nothing
+definite to reconstruct. In his acknowledgments Stephenson says the Decagon
+problem was inspired by Peter Lu and Paul Steinhardt's study of girih tilings in
+Central Asian mosques, that its details are "altogether fictional", and that a
+mathematician could probably prove his version ridiculous.
+
+The girih tiles are the closest thing to a source: five unit-sided shapes with
+angles in multiples of 36 degrees (decagon, long hexagon, bow tie, 72/108 rhombus,
+pentagon), decorated with strapwork lines that cross the middle of every side and
+run on from tile to tile. Four of the five are among the seven shapes above; the
+fifth, the bow tie, is not convex. It is available as shape 7 (`-m`).
+
+Fixed-groove results with the bow tie added, every groove layout tried:
+
+| Shapes | Side 2 | Side 3 | Side 4 |
+|---|---|---|---|
+| the five girih tiles | none | none | none |
+| girih five + thin rhomb | none | none | none |
+| girih five + thin rhomb + squat hexagon | solvable | none | none |
+| girih five + thin rhomb + octagon | none | none | none |
+| all eight | solvable | none | none |
+
+The five girih tiles alone cannot even pave a side-3 decagon edge to edge.
+
 ## How it solves
 
 1. **Paving.** The decagon is paved as the dual of a pentagrid (de Bruijn's
@@ -117,7 +143,7 @@ others. GNOME does not provide it. It does not lock the screen.
 
 ### Windows
 
-Run `Teglon-Setup-1.0.1.exe`. It installs for the current user without
+Run `Teglon-Setup-1.0.2.exe`. It installs for the current user without
 administrator rights, makes Teglon the current screensaver, and offers to open
 Screen Saver Settings. Uninstall from Apps or the Start menu.
 

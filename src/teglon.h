@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 
-#define TG_NS 7      /* number of moulds */
+#define TG_NS 8      /* shapes known: the seven convex ones and the girih bow tie */
 #define TG_MAXV 10   /* most sides on a tile */
 #define TG_MAXT 8192 /* most tiles in a paving */
 
@@ -27,6 +27,7 @@ typedef struct {
     int used_s, used_g, chose;
     TgPt v[TG_MAXV];
     double x[TG_MAXV], y[TG_MAXV], lo[5], hi[5], cx, cy;
+    double lo2[5], hi2[5]; /* second convex piece of a bow tie */
 } TgTile;
 
 enum { TG_NONE, TG_PLACE, TG_REMOVE, TG_TILED, TG_GROW, TG_REWIRE, TG_SOLVED, TG_EXHAUSTED };
