@@ -21,6 +21,7 @@
 
 /* ---- options ---- */
 static int opt_window = 0, opt_min = 3, opt_max = 7;
+static int opt_strict = -1; /* -1: a strict round now and then, 0: never, 1: always */
 static const char *opt_snapshot = NULL; /* write a still picture instead of running */
 static double opt_time = 30;
 static int opt_w = 1920, opt_h = 1200;
@@ -104,16 +105,31 @@ static void flush(SDL_Renderer *r)
     vb_reset();
 }
 
-/* ---- the puzzle being shown ---- */
-enum { ST_LAY, ST_ROUTE, ST_PULSE, ST_HOLD, ST_LIFT };
-static int state, layer, rotk, solved_once;
+/* ---- the puzzle being shown ----
+ *
+ * Every tile has its groove on it before it is set down. Two kinds of round:
+ *
+ *  - The strict game, on a small Decagon: seven moulds with one fixed groove each.
+ *    The real search is shown, tiles being tried and lifted again until every
+ *    groove meets its neighbour.
+ *  - A large Decagon, where a mould may carry its groove between any two sides.
+ *    Tiles go down one after another along the curve, each continuing the groove
+ *    of the last. When the curve is boxed in, tiles are lifted and others with
+ *    different grooves put in their place, which sends the curve off elsewhere.
+ */
+enum { ST_ROUTE, ST_SEARCH, ST_PULSE, ST_HOLD, ST_LIFT };
+static int state, layer, rotk, round_no;
 static double st_time;         /* seconds in the current state */
-static double laid;            /* tiles laid so far (fractional) */
-static double lay_rate, route_rate, route_acc;
-static long route_steps;
-static int *lay_order, *lay_pos; /* tiles in the order they are set down */
+static double now_t;           /* seconds since the show began */
+static double rate, acc;       /* visible moves per second */
+static long steps;
+static double t_laid[TG_MAXT + 1];             /* when each tile last went down */
+static int last_in[TG_MAXT + 1], last_out[TG_MAXT + 1];
 static int *p_order, *p_in, *p_out, p_len; /* the finished groove */
 static uint64_t seed_state;
+
+/* the one groove layout for which the strict game can be finished (side 2) */
+static const int STRICT_A[TG_NS] = {0, 1, 0, 0, 2, 0, 0}, STRICT_B[TG_NS] = {1, 2, 1, 2, 5, 3, 5};
 
 static uint64_t next_rand(void)
 {
@@ -122,82 +138,90 @@ static uint64_t next_rand(void)
 }
 static double frand(void) { return (next_rand() >> 11) * (1.0 / 9007199254740992.0); }
 
-static double *sort_key;
-static int cmp_key(const void *a, const void *b)
+static void new_round(int fresh)
 {
-    double d = sort_key[*(const int *)a] - sort_key[*(const int *)b];
-    return d < 0 ? -1 : d > 0;
-}
-
-static void new_paving(int fresh_size)
-{
-    static int side = 4;
-    if (fresh_size) side = opt_min + (int)(next_rand() % (uint64_t)(opt_max - opt_min + 1));
+    static int side = 4, strict = 0;
+    if (fresh) {
+        strict = opt_strict == 1 || (opt_strict < 0 && round_no % 3 == 0);
+        side = opt_min + (int)(next_rand() % (uint64_t)(opt_max - opt_min + 1));
+        round_no++;
+    }
+    for (int i = 0; i <= TG_MAXT; i++) { t_laid[i] = now_t; last_in[i] = last_out[i] = -2; }
+    acc = 0; steps = 0; st_time = 0;
+    if (strict) {
+        tg_strict = 1;
+        for (int s = 0; s < TG_NS; s++) { tg_ga[s] = STRICT_A[s]; tg_gb[s] = STRICT_B[s]; tg_fixed[s] = 1; }
+        tg_init(2, next_rand());
+        rate = 7 * opt_speed;
+        state = ST_SEARCH;
+        return;
+    }
+    tg_strict = 0;
     tg_init(side, next_rand());
     double rich = 0.35 + 0.65 * frand(), pent = frand() < 0.25 ? 0 : 0.2 + 0.7 * frand();
     if (!tg_pave(rich, pent)) { tg_init(side, next_rand()); tg_pave(0.5, 0); }
-    /* tiles go down outwards from the first vertex */
-    free(lay_order); free(lay_pos); free(sort_key);
-    lay_order = malloc(sizeof(int) * (tg_nt + 1));
-    lay_pos = malloc(sizeof(int) * (tg_nt + 1));
-    sort_key = malloc(sizeof(double) * (tg_nt + 1));
-    for (int i = 0; i < tg_nt; i++) {
-        lay_order[i] = i;
-        sort_key[i] = hypot(tg_tile[i].cx - tg_corner_x[0], tg_tile[i].cy - tg_corner_y[0]) + 0.6 * frand();
-    }
-    qsort(lay_order, tg_nt, sizeof(int), cmp_key);
-    for (int i = 0; i < tg_nt; i++) lay_pos[lay_order[i]] = i;
-    double t = tg_nt / 22.0;
-    if (t < 7) t = 7;
-    if (t > 20) t = 20;
-    lay_rate = tg_nt / t * opt_speed;
-    laid = 0; state = ST_LAY; st_time = 0;
+    tg_path_begin();
+    double t = tg_nt / 14.0;
+    if (t < 12) t = 12;
+    if (t > 32) t = 32;
+    rate = tg_nt / t * opt_speed;
+    state = ST_ROUTE;
 }
 
-static void begin_route(void)
+static void solved(void)
 {
-    tg_path_begin();
-    route_rate = tg_nt / 16.0 * opt_speed;
-    if (route_rate < 6) route_rate = 6;
-    route_acc = 0; route_steps = 0;
-    state = ST_ROUTE; st_time = 0;
+    free(p_order);
+    p_order = malloc(sizeof(int) * (tg_nt + 1) * 3);
+    p_in = p_order + tg_nt + 1; p_out = p_in + tg_nt + 1;
+    p_len = tg_path(p_order, p_in, p_out);
+    state = ST_PULSE; st_time = 0;
 }
 
 static void update(double dt)
 {
     st_time += dt;
+    now_t += dt;
     switch (state) {
-    case ST_LAY:
-        laid += lay_rate * dt;
-        if (laid >= tg_nt + 0.5 * lay_rate) { laid = tg_nt; begin_route(); }
-        break;
     case ST_ROUTE: {
-        /* the search runs at a watchable pace, quickening if it drags on */
-        double rate = route_rate * (st_time > 25 ? 1 + (st_time - 25) * 0.5 : 1);
-        route_acc += rate * dt;
-        while (route_acc >= 1) {
-            route_acc -= 1;
+        /* a watchable pace, quickening if it drags on */
+        acc += rate * (st_time > 40 ? 1 + (st_time - 40) * 0.5 : 1) * dt;
+        while (acc >= 1 && state == ST_ROUTE) {
+            acc -= 1;
             int r = tg_path_step();
-            route_steps++;
-            if (r == TG_SOLVED) {
-                free(p_order);
-                p_order = malloc(sizeof(int) * tg_nt * 3);
-                p_in = p_order + tg_nt; p_out = p_in + tg_nt;
-                p_len = tg_path(p_order, p_in, p_out);
-                state = ST_PULSE; st_time = 0; solved_once = 1;
-                break;
-            }
-            if (route_steps > 400L * tg_nt + 20000) { state = ST_LIFT; st_time = 0; break; } /* this paving has no way through */
+            if (r == TG_SOLVED) { solved(); break; }
+            if (++steps > 400L * tg_nt + 20000) { state = ST_LIFT; st_time = 0; } /* this paving has no way through */
+        }
+        if (state != ST_ROUTE) break;
+        /* tiles that are new, or were swapped for one with another groove, drop in afresh */
+        for (int i = 0; i < tg_plen; i++) {
+            int id = tg_porder[i], a, b;
+            tg_path_sides(i, &a, &b);
+            if (a != last_in[id] || (last_out[id] >= 0 && b != last_out[id])) t_laid[id] = now_t;
+            last_in[id] = a; last_out[id] = b;
         }
         break;
     }
+    case ST_SEARCH:
+        acc += rate * (st_time > 60 ? 1 + (st_time - 60) * 0.3 : 1) * dt;
+        while (acc >= 1 && state == ST_SEARCH) {
+            acc -= 1;
+            /* run on to the next tile laid or lifted */
+            for (int guard = 0; guard < 100000; guard++) {
+                int r = tg_step();
+                if (r == TG_PLACE) { t_laid[tg_nt - 1] = now_t; break; }
+                if (r == TG_REMOVE) break;
+                if (r == TG_SOLVED) { t_laid[tg_nt - 1] = now_t; solved(); break; }
+                if (r == TG_EXHAUSTED) { state = ST_LIFT; st_time = 0; break; }
+            }
+        }
+        break;
     case ST_PULSE:
         if (st_time > 6.0 / opt_speed) { state = ST_HOLD; st_time = 0; }
         break;
     case ST_HOLD:
         break; /* main loop snapshots the picture and starts the next layer */
     case ST_LIFT:
-        if (st_time > 2.5) new_paving(0);
+        if (st_time > 2.5) new_round(0);
         break;
     }
 }
@@ -302,24 +326,39 @@ static void draw_scene(View *v)
     if (v->have_prev) SDL_RenderCopy(r, v->prev, NULL, NULL);
     else { draw_marble(); flush(r); }
 
-    /* tiles */
+    /* tiles: only those that have been set down */
     double lift = state == ST_LIFT ? 1 - st_time / 2.0 : 1;
     if (lift < 0) lift = 0;
-    for (int i = 0; i < tg_nt; i++) {
-        int id = lay_order[i];
-        double age = (laid - i) / (lay_rate * 0.35); /* 0..1 over about a third of a second */
-        if (state != ST_LAY) age = 1;
-        if (age <= 0) break;
-        if (age > 1) age = 1;
-        double a = age;
-        if (state == ST_LIFT) { double q = lift * 1.6 - 0.6 * (1 - (double)i / tg_nt); a = q < 0 ? 0 : q > 1 ? 1 : q; }
-        if (a > 0) draw_tile(&tg_tile[id], id, p, state == ST_LIFT ? a : age, a);
+    int shown = state == ST_ROUTE || (state == ST_LIFT && !tg_strict) ? tg_plen : tg_nt;
+    for (int i = 0; i < shown; i++) {
+        int id = state == ST_ROUTE || (state == ST_LIFT && !tg_strict) ? tg_porder[i] : i;
+        double age = (now_t - t_laid[id]) / 0.3;
+        if (age > 1 || state == ST_PULSE || state == ST_HOLD) age = 1;
+        if (age < 0.02) age = 0.02;
+        draw_tile(&tg_tile[id], id, p, age, state == ST_LIFT ? lift : age);
     }
     flush(r);
+    double w = 0.11 * vscale;
+    if (w < 2.5) w = 2.5;
+    if (state == ST_SEARCH || (state == ST_LIFT && tg_strict)) {
+        /* strict game: each tile's own groove, joined or not */
+        double qx[GSEG + 1], qy[GSEG + 1];
+        for (int id = 0; id < tg_nt; id++) {
+            const TgTile *t = &tg_tile[id];
+            double al = (now_t - t_laid[id]) / 0.3;
+            if (al > 1) al = 1;
+            if (state == ST_LIFT) al = lift;
+            int np = groove_pts(t, t->a, t->b, qx, qy);
+            ribbon(qx, qy, 0, np, w, col(p->groove, 1, al));
+            disc(qx[0], qy[0], w * 0.5, col(p->groove, 1, al), col(p->groove, 1, al));
+            disc(qx[np - 1], qy[np - 1], w * 0.5, col(p->groove, 1, al), col(p->groove, 1, al));
+        }
+        flush(r);
+    }
 
     /* groove */
     int len = 0, loose = 0;
-    if (state == ST_ROUTE) { len = tg_plen; loose = 1; }
+    if (state == ST_ROUTE || (state == ST_LIFT && !tg_strict)) { len = tg_plen; loose = 1; }
     else if (state == ST_PULSE || state == ST_HOLD) len = p_len;
     if (len > 0) {
         int need = len * (GSEG + 1) + 4;
@@ -332,19 +371,17 @@ static void draw_scene(View *v)
             if (np) np--; /* shares its first point with the previous tile's last */
             np += groove_pts(&tg_tile[id], a, b, gx + np, gy + np);
         }
-        double w = 0.11 * vscale;
-        if (w < 2.5) w = 2.5;
-        ribbon(gx, gy, 0, np, w, col(p->groove, 1, 1));
-        disc(gx[0], gy[0], w * 0.5, col(p->groove, 1, 1), col(p->groove, 1, 1));
+        ribbon(gx, gy, 0, np, w, col(p->groove, 1, lift));
+        disc(gx[0], gy[0], w * 0.5, col(p->groove, 1, lift), col(p->groove, 1, lift));
         flush(r);
-        if (loose) {
+        if (loose && state == ST_ROUTE) {
             /* the loose end of the groove, feeling its way */
             double pulse = 0.75 + 0.25 * sin(st_time * 7);
             SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
             disc(gx[np - 1], gy[np - 1], w * 2.6 * pulse, col(p->glow, 1, 0.55), col(p->glow, 1, 0));
             disc(gx[np - 1], gy[np - 1], w * 0.8, col(p->glow, 1, 1), col(p->glow, 1, 1));
             flush(r);
-        } else {
+        } else if (!loose) {
             /* light runs down the finished groove from the first vertex to the last */
             double u = state == ST_PULSE ? st_time / (4.5 / opt_speed) : 1;
             if (u > 1) u = 1;
@@ -443,7 +480,8 @@ static void start_show(void)
     for (int i = 0; i < 6; i++) next_rand();
     layer = (int)(next_rand() % 4);
     rotk = (int)(next_rand() % 10);
-    new_paving(1);
+    now_t = 0; round_no = 0;
+    new_round(1);
 }
 
 /* after a solution has been admired: keep it as the floor and start the next */
@@ -452,7 +490,7 @@ static void next_layer(void)
 {
     layer++;
     rotk = (int)(next_rand() % 10);
-    new_paving(1);
+    new_round(1);
 }
 
 /* run the show without a window for opt_time seconds and save what it looks like */
@@ -482,6 +520,8 @@ static void usage(void)
         "  --min N         smallest decagon side, in tile edges (default 3)\n"
         "  --max N         largest decagon side (default 7)\n"
         "  --speed X       animation speed, 1 = normal\n"
+        "  --strict        only the strict game: seven moulds, one fixed groove each (side 2)\n"
+        "  --no-strict     never the strict game\n"
         "  --seed N        repeatable sequence\n"
         "  --snapshot FILE.bmp [--time SECONDS] [--size WxH]\n"
         "                  write a picture of the screensaver after SECONDS and exit\n", NULL);
@@ -499,6 +539,8 @@ int main(int argc, char **argv)
             return 0;
         }
         else if (!strcmp(a, "--window")) opt_window = 1;
+        else if (!strcmp(a, "--strict")) opt_strict = 1;
+        else if (!strcmp(a, "--no-strict")) opt_strict = 0;
         else if (!strcmp(a, "--min") && i + 1 < argc) opt_min = SDL_atoi(argv[++i]);
         else if (!strcmp(a, "--max") && i + 1 < argc) opt_max = SDL_atoi(argv[++i]);
         else if (!strcmp(a, "--speed") && i + 1 < argc) opt_speed = SDL_atof(argv[++i]);

@@ -79,15 +79,27 @@ Decagons up to side 24 (about 3,900 tiles) solve in well under a second.
 
 ## The screensaver
 
-`teglon` shows the paving being laid outward from the first vertex, then the groove
-feeling its way through, then light running down the finished groove. Each new
-solution is laid over the last in a different tile: terra-cotta, green, brown, and
-white porcelain with a black glazed line, as at Elkhazg in the book.
+Every tile has its groove on it before it is set down. `teglon` plays two kinds
+of round, each new solution laid over the last in a different tile: terra-cotta,
+green, brown, and white porcelain with a black glazed line, as at Elkhazg in the
+book.
+
+- **The strict game** (every third round, on a side-2 Decagon): seven moulds, one
+  fixed groove each. You watch the real search: tiles tried, lifted and tried
+  again until every groove meets its neighbour.
+- **A large Decagon**, where a shape may carry its groove between any two sides.
+  Tiles go down one after another along the curve, each continuing the groove of
+  the last. When the curve is boxed in, tiles are lifted and others with different
+  grooves are put in their place.
+
+When a round is solved, light runs down the groove from the first vertex to the
+last.
 
     teglon                  full screen on every display; any key or mouse movement quits
     teglon --window         in a window; Esc or Q quits
     teglon --min 3 --max 7  range of decagon sizes
     teglon --speed 2        faster
+    teglon --strict         only the strict game; --no-strict for never
     teglon --snapshot out.bmp --time 40 --size 1920x1080
 
 ### Linux
@@ -105,7 +117,7 @@ others. GNOME does not provide it. It does not lock the screen.
 
 ### Windows
 
-Run `Teglon-Setup-1.0.0.exe`. It installs for the current user without
+Run `Teglon-Setup-1.0.1.exe`. It installs for the current user without
 administrator rights, makes Teglon the current screensaver, and offers to open
 Screen Saver Settings. Uninstall from Apps or the Start menu.
 
