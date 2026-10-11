@@ -1,136 +1,67 @@
 # Teglon
 
-A solver and screensaver for the Teglon, the tiling problem in Neal Stephenson's
-novel *Anathem*.
+A screensaver and solver for the Teglon, the tiling problem in Neal Stephenson's
+novel *Anathem*. Runs on Linux and Windows.
 
-![The screensaver part-way through lighting a finished groove](docs/screenshot.png)
+![A Decagon half paved, the pattern growing outward from the first vertex](docs/laying.png)
 
 ## The problem
 
 In the novel the Teglon is played on the Decagon, a ten-sided plaza in front of the
-temple at Orithena. What the book gives:
+temple at Orithena:
 
-- The plaza is a regular decagon.
-- There are seven moulds, so seven shapes of tile. One of them is a rhombus whose
-  obtuse angle fits exactly into a corner of the decagon.
-- Every tile has a groove running from one of its sides to another.
-- The decagon must be paved completely, building outward from one vertex, so that
+- The plaza is a regular decagon about two hundred feet across, paved in marble.
+- There are seven moulds, so seven shapes of clay tile. One is a rhombus whose
+  obtuse angle fits exactly into a corner of the Decagon.
+- Every tile has a groove moulded into it, running from one of its sides to another.
+- You build the pattern outward from one vertex and pave the whole Decagon so that
   the grooves join into a single unbroken curve from that vertex to the one
-  directly opposite, and the curve crosses every tile.
-- The tiles are aperiodic: no pattern repeats, so a choice made in one place
-  constrains tiles far away.
+  directly opposite, crossing every tile.
+- Stretches of groove get left hanging and have to be worked back to. A tile laid
+  in one place ends up deciding tiles far away.
 
-The book never says what the seven shapes are or where their grooves run, so any
-program has to fill that in.
+## What the screensaver shows
 
-## How this program fills it in
+A rhombus goes down in the first corner, its obtuse angle in the vertex, and a tile
+at the vertex opposite. Then grooved tiles are laid outward from the first vertex,
+carrying the groove on from tile to tile, leaving stretches marooned and joining
+them up later. When the last tile is down, light runs along the groove from the
+first vertex to the last. The next solution is laid on top in another kind of tile,
+as at Elkhazg in the book: terra-cotta, then green, then brown, then white
+porcelain with a black glazed line.
 
-**The seven shapes.** A corner of a regular decagon is 144 degrees, so the natural
-tiles have unit sides and angles that are multiples of 36 degrees. There are
-exactly seven convex polygons like that:
-
-| # | Shape | Sides | Angles |
-|---|-------|-------|--------|
-| 0 | thin rhomb | 4 | 36, 144 |
-| 1 | thick rhomb | 4 | 72, 108 |
-| 2 | regular pentagon | 5 | 108 |
-| 3 | long hexagon | 6 | 72, 144, 144 |
-| 4 | squat hexagon | 6 | 108, 108, 144 |
-| 5 | octagon | 8 | 108, 144, 144, 144 |
-| 6 | regular decagon | 10 | 144 |
-
-The thin rhomb is the book's rhombus: its 144 degree corner fills a corner of the
-plaza. The two rhombs are the Penrose rhombs, the real-world aperiodic tiles the
-Teglon is modelled on.
-
-**The grooves.** A groove joins the midpoints of two sides of a tile. By default
-any two sides may be joined, so tiles of one shape come with different grooves.
-
-The stricter reading, one fixed groove per shape, is also implemented
-(`teglon-solve -g`). With these seven shapes it turns out to be almost unsolvable.
-Searching every possible choice of grooves exhaustively:
-
-| Decagon side | Result |
+| | |
 |---|---|
-| 2 | solvable (21 tiles) |
-| 3, 4, 5, 6 | no solution for any choice of grooves |
+| ![Close-up of the tiles and groove](docs/closeup.png) | ![Light running along the finished groove](docs/light.png) |
+| The seven shapes, each in its own tone | Finished: one curve, vertex to vertex |
+| ![A second solution laid over the first](docs/layers.png) | ![The strict game](docs/strict.png) |
+| A new solution going down over the last | `--strict`: seven moulds, one groove each |
 
-Each of those searches fails within about twenty tiles of the first vertex, so the
-obstruction is local to the corner and larger decagons should fail the same way.
-That is a computed result for this set of shapes, not a statement about the novel.
-
-### Where the puzzle comes from
-
-Nobody has published a reconstruction of the Teglon tiles, and there is nothing
-definite to reconstruct. In his acknowledgments Stephenson says the Decagon
-problem was inspired by Peter Lu and Paul Steinhardt's study of girih tilings in
-Central Asian mosques, that its details are "altogether fictional", and that a
-mathematician could probably prove his version ridiculous.
-
-The girih tiles are the closest thing to a source: five unit-sided shapes with
-angles in multiples of 36 degrees (decagon, long hexagon, bow tie, 72/108 rhombus,
-pentagon), decorated with strapwork lines that cross the middle of every side and
-run on from tile to tile. Four of the five are among the seven shapes above; the
-fifth, the bow tie, is not convex. It is available as shape 7 (`-m`).
-
-Fixed-groove results with the bow tie added, every groove layout tried:
-
-| Shapes | Side 2 | Side 3 | Side 4 |
-|---|---|---|---|
-| the five girih tiles | none | none | none |
-| girih five + thin rhomb | none | none | none |
-| girih five + thin rhomb + squat hexagon | solvable | none | none |
-| girih five + thin rhomb + octagon | none | none | none |
-| all eight | solvable | none | none |
-
-The five girih tiles alone cannot even pave a side-3 decagon edge to edge.
-
-## How it solves
-
-1. **Paving.** The decagon is paved as the dual of a pentagrid (de Bruijn's
-   construction): five families of parallel lines, and every point where lines
-   cross becomes a tile. Two lines crossing give a rhomb, three a hexagon, four an
-   octagon, five a decagon. Line positions are drawn from a quasicrystal so that
-   many lines meet at common points. Some octagons are then split into two
-   pentagons and two thin rhombs.
-2. **Groove.** The groove is a path through neighbouring tiles from the first
-   vertex to the opposite one that visits every tile once. It is grown from the
-   first vertex; whenever its end is boxed in, the path is rewired by reversing its
-   tail, which moves the end elsewhere without dropping a tile.
-3. **Check.** Every answer is verified independently of the search: tiles inside
-   the decagon, no overlaps, total area equal to the decagon's, and the groove
-   walked from vertex to vertex counting every tile.
-
-Decagons up to side 24 (about 3,900 tiles) solve in well under a second.
-
-## The screensaver
-
-Every tile has its groove on it before it is set down. `teglon` plays two kinds
-of round, each new solution laid over the last in a different tile: terra-cotta,
-green, brown, and white porcelain with a black glazed line, as at Elkhazg in the
-book.
-
-- **The strict game** (every third round, on a side-2 Decagon): seven moulds, one
-  fixed groove each. You watch the real search: tiles tried, lifted and tried
-  again until every groove meets its neighbour.
-- **A large Decagon**, where a shape may carry its groove between any two sides.
-  Tiles go down one after another along the curve, each continuing the groove of
-  the last. When the curve is boxed in, tiles are lifted and others with different
-  grooves are put in their place.
-
-When a round is solved, light runs down the groove from the first vertex to the
-last.
+Every Decagon is solved afresh and no two are the same. The default is 30 tile
+edges to a side, about 6,500 tiles, which on a 200-foot plaza makes the tiles
+roughly two feet across. The book gives the size of the plaza but not of the
+tiles, so that scale is a guess; `--side` changes it.
 
     teglon                  full screen on every display; any key or mouse movement quits
     teglon --window         in a window; Esc or Q quits
-    teglon --min 3 --max 7  range of decagon sizes
+    teglon --side 40        smaller tiles, more of them (up to 48)
     teglon --speed 2        faster
-    teglon --strict         only the strict game; --no-strict for never
-    teglon --snapshot out.bmp --time 40 --size 1920x1080
+    teglon --strict         the strict game (see below)
+    teglon --snapshot out.bmp --time 60 --size 1920x1080
 
-### Linux
+## Install
 
-Install the `.deb` or `.rpm`, then turn the screensaver on for your session:
+Packages are on the [releases page](../../releases).
+
+**Fedora, Nobara** (built on Fedora 44):
+
+    sudo dnf install ./teglon-1.0.3-1.fc44.x86_64.rpm
+
+**Debian, Ubuntu, Mint** (needs glibc 2.35 or newer, i.e. Ubuntu 22.04 / Debian 12 or later):
+
+    sudo apt install ./teglon_1.0.3_amd64.deb
+
+Then turn it on for your session:
 
     teglon-screensaver enable 5     # start after 5 minutes idle
     teglon-screensaver disable
@@ -141,20 +72,84 @@ run `teglon` when the session goes idle. It works on compositors that provide th
 ext-idle-notify protocol: KDE Plasma, Sway, Hyprland, niri, COSMIC, labwc and
 others. GNOME does not provide it. It does not lock the screen.
 
-### Windows
-
-Run `Teglon-Setup-1.0.2.exe`. It installs for the current user without
+**Windows:** run `Teglon-Setup-1.0.3.exe`. It installs for the current user without
 administrator rights, makes Teglon the current screensaver, and offers to open
-Screen Saver Settings. Uninstall from Apps or the Start menu.
+Screen Saver Settings. Uninstall from Apps or the Start menu. The Windows build is
+cross-compiled and has not been tested on a real Windows machine yet.
+
+## The tiles
+
+The book never says what the seven shapes are. In his acknowledgments Stephenson
+says the Decagon problem was inspired by Peter Lu and Paul Steinhardt's study of
+girih tilings in Central Asian mosques, that its details are "altogether
+fictional", and that a mathematician could probably prove his version ridiculous.
+Nobody seems to have published a reconstruction.
+
+Girih tiles are five shapes with equal sides and angles in multiples of 36 degrees,
+decorated with lines that cross the middle of every side and run on from tile to
+tile. A corner of a regular decagon is 144 degrees, and the rhombus that fits it is
+the thin Penrose rhomb, which is not a girih tile. So the seven moulds here are:
+
+| # | Shape | Sides | Angles | |
+|---|-------|-------|--------|---|
+| 0 | thin rhomb | 4 | 36, 144 | the book's rhombus |
+| 1 | thick rhomb | 4 | 72, 108 | girih |
+| 2 | regular pentagon | 5 | 108 | girih |
+| 3 | long hexagon | 6 | 72, 144, 144 | girih |
+| 4 | squat hexagon | 6 | 108, 108, 144 | |
+| 6 | regular decagon | 10 | 144 | girih |
+| 7 | bow tie | 6 | 72, 72, 216 | girih |
+
+(Shape 5, an octagon, is known to the solver but is not one of the seven.)
+
+### Fixed grooves
+
+The book's tiles have their grooves moulded in, one per mould. With these shapes
+that turns out to be almost unsolvable. Searching every possible choice of grooves
+exhaustively:
+
+| Shapes | Side 2 | Side 3 | Side 4 |
+|---|---|---|---|
+| the five girih tiles | none | none | none |
+| girih five + thin rhomb | none | none | none |
+| the seven above | solvable | none | none |
+| girih five + thin rhomb + octagon | none | none | none |
+| all eight | solvable | none | none |
+
+The seven above are the only seven of the eight that contain the girih tiles and
+the book's rhombus and can be solved at all with fixed grooves, on a Decagon two
+edges to a side (21 tiles). `teglon --strict` plays that game and shows the real
+search, tiles tried and lifted again until every groove meets its neighbour.
+
+For anything larger the screensaver lets a shape carry its groove between any two
+of its sides, so there are more than seven moulds. Every tile still has its groove
+on it before it goes down. That is the one place this departs from the book, and
+these are computed results for this set of shapes, not statements about the novel.
+
+## How it solves
+
+1. **Paving.** The Decagon is paved as the dual of a pentagrid (de Bruijn's
+   construction): five families of parallel lines, and every point where lines
+   cross becomes a tile. Two lines crossing give a rhomb, three a hexagon, five a
+   decagon. Line positions are drawn from a quasicrystal so that many lines meet
+   at common points. Octagons are split into two pentagons and two thin rhombs,
+   and some squat hexagons into a bow tie and two thin rhombs.
+2. **Groove.** The groove is a path through neighbouring tiles from the first
+   vertex to the opposite one that visits every tile once. It is grown from the
+   first vertex; whenever its end is boxed in, the path is rewired by reversing its
+   tail, which moves the end elsewhere without dropping a tile.
+3. **Check.** `teglon-solve` verifies every answer independently of the search:
+   tiles inside the Decagon, no overlaps, total area equal to the Decagon's, and
+   the groove walked from vertex to vertex counting every tile.
 
 ## The solver
 
-    teglon-solve -n 6 --svg out.svg       solve side 6 and draw it
-    teglon-solve -n 12 -r 1 -p 0.3        -r: more large tiles, -p: share of pentagons
-    teglon-solve -n 2 -g 01,12,01,xx,25,xx,05      strict puzzle, fixed grooves
-    teglon-solve -n 3 -g xx,xx,xx,xx,xx,xx,xx -b 0 strict puzzle, try every groove layout
+    teglon-solve -n 6 -x 5 --svg out.svg > /dev/null   solve side 6 with the seven moulds, draw it
+    teglon-solve -n 40 -x 5 > /dev/null                 about 11,500 tiles, a couple of seconds
+    teglon-solve -n 2 -x 5 -g 01,12,01,xx,25,xx,05,xx   fixed grooves, side 2
+    teglon-solve -n 3 -m 0123467 -g xx,xx,xx,xx,xx,xx,xx,xx -b 0   fixed grooves, try every layout
 
-Output is one line for the decagon (`D side x0 y0 ... x9 y9`), then one line per
+Output is one line for the Decagon (`D side x0 y0 ... x9 y9`), then one line per
 tile in the order the groove visits them
 (`P shape sides side_in side_out x0 y0 x1 y1 ...`), then `S`.
 

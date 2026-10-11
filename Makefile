@@ -1,5 +1,5 @@
 # Teglon - solver and screensaver for the tiling problem in Neal Stephenson's "Anathem"
-VERSION  := 1.0.2
+VERSION  := 1.0.3
 PREFIX   ?= /usr
 DESTDIR  ?=
 CC       ?= cc

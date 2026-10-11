@@ -29,7 +29,7 @@
 
 /* ---- options ---- */
 static int opt_window = 0;
-static int opt_min = 40, opt_max = 40; /* side of the Decagon in tile edges; see README for the scale */
+static int opt_min = 30, opt_max = 30; /* side of the Decagon in tile edges; see README for the scale */
 static int opt_strict = 0;             /* play the seven-moulds-one-groove-each game on a side-2 Decagon */
 static double opt_speed = 1.0;
 static uint64_t opt_seed = 0;
@@ -41,12 +41,13 @@ static int opt_w = 1920, opt_h = 1200;
 typedef struct { Uint8 r, g, b; } Rgb;
 typedef struct { Rgb tile, grout, groove, glow; } Palette;
 static const Palette PAL[4] = {
-    {{201, 123, 74}, {132, 78, 46}, {40, 20, 10}, {255, 220, 150}},    /* terra-cotta */
-    {{104, 142, 96}, {64, 92, 60}, {14, 28, 16}, {214, 255, 190}},     /* green */
-    {{134, 94, 64}, {86, 58, 38}, {22, 13, 7}, {255, 205, 155}},       /* brown */
-    {{222, 218, 208}, {168, 164, 156}, {22, 22, 26}, {120, 190, 255}}, /* white porcelain, black glaze */
+    {{206, 126, 76}, {104, 60, 34}, {14, 5, 2}, {255, 226, 160}},      /* terra-cotta */
+    {{112, 150, 102}, {52, 78, 48}, {4, 12, 6}, {220, 255, 196}},     /* green */
+    {{146, 104, 72}, {74, 50, 30}, {10, 5, 2}, {255, 210, 160}},       /* brown */
+    {{226, 222, 212}, {134, 130, 124}, {6, 6, 10}, {120, 190, 255}}, /* white porcelain, black glaze */
 };
-static const double SHADE[TG_NS] = {1.00, 0.93, 1.08, 0.88, 0.97, 0.84, 1.05, 0.90};
+/* each shape its own tone, so the shapes read at a distance */
+static const double SHADE[TG_NS] = {1.04, 0.86, 1.16, 0.76, 0.94, 0.72, 1.10, 0.68};
 static const Rgb BG = {18, 16, 14}, MARBLE = {196, 190, 178}, MARBLE_EDGE = {120, 114, 104};
 
 /* ---- geometry buffer ---- */
@@ -302,8 +303,8 @@ static void set_view(const View *v)
     vscale = 0.47 * (v->w < v->h ? v->w : v->h) / R;
     vx0 = v->w / 2.0; vy0 = v->h / 2.0;
     vcos = cos(rotk * M_PI / 5 + M_PI / 10); vsin = sin(rotk * M_PI / 5 + M_PI / 10);
-    gw = 0.12 * vscale; /* width of the groove */
-    if (gw < 1.6) gw = 1.6;
+    gw = 0.13 * vscale; /* width of the groove */
+    if (gw < 2.2) gw = 2.2;
 }
 static unsigned hash_u(unsigned a) { a ^= a >> 16; a *= 0x7feb352dU; a ^= a >> 15; a *= 0x846ca68bU; a ^= a >> 16; return a; }
 
@@ -352,17 +353,19 @@ static void draw_tile(const TgTile *t, int id, const Palette *p, double appear, 
         if (d < rin) rin = d;
     }
     double grow = 1 + 0.35 * (1 - appear) * (1 - appear);
-    double jit = 0.94 + 0.12 * (hash_u((unsigned)id * 2654435761u + (unsigned)layer * 97u) & 1023) / 1023.0;
+    double jit = 0.96 + 0.08 * (hash_u((unsigned)id * 2654435761u + (unsigned)layer * 97u) & 1023) / 1023.0;
     double k = SHADE[t->s] * jit;
     map(t->cx, t->cy, &cx, &cy);
     for (int j = 0; j < t->n; j++)
         map(t->cx + (t->x[j] - t->cx) * grow, t->cy + (t->y[j] - t->cy) * grow, &x[j], &y[j]);
     fan(x, y, t->n, cx, cy, col(p->grout, 1, alpha), col(p->grout, 1, alpha));
-    double in = 1 - 0.035 / rin;
-    if (in < 0.86) in = 0.86;
-    if (vscale < 14) in = 1 - (1 - in) * 0.5; /* small tiles: thinner joints */
+    /* the joint between tiles: a fixed width, never thinner than shows on screen */
+    double joint = 0.03 * vscale;
+    if (joint < 0.8) joint = 0.8;
+    double in = 1 - joint / (rin * vscale);
+    if (in < 0.62) in = 0.62;
     for (int j = 0; j < t->n; j++) { x[j] = cx + (x[j] - cx) * in; y[j] = cy + (y[j] - cy) * in; }
-    fan(x, y, t->n, cx, cy, col(p->tile, k * 1.07, alpha), col(p->tile, k * 0.93, alpha));
+    fan(x, y, t->n, cx, cy, col(p->tile, k * 1.04, alpha), col(p->tile, k * 0.96, alpha));
     if (t->a >= 0 && t->b >= 0 && t->a != t->b) {
         double qx[GSEG + 1], qy[GSEG + 1];
         int np = groove_pts(t, t->a, t->b, qx, qy);
@@ -565,7 +568,7 @@ static void usage(void)
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Teglon",
         "Teglon screensaver\n\n"
         "  --window        run in a window (Esc or Q quits)\n"
-        "  --side N        side of the Decagon in tile edges (default 40)\n"
+        "  --side N        side of the Decagon in tile edges (default 30)\n"
         "  --min N --max N pick the side at random in a range\n"
         "  --speed X       animation speed, 1 = normal\n"
         "  --strict        the strict game: seven moulds, one fixed groove each (side 2)\n"
