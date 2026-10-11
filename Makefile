@@ -6,7 +6,7 @@ CC       ?= cc
 # gnu11 keeps the binary free of very recent glibc symbols, so packages built on a
 # new distribution still run on older ones
 CFLAGS   ?= -O2 -g
-CFLAGS   += -std=gnu11 -Wall -Wno-trigraphs
+override CFLAGS += -std=gnu11 -Wall -Wno-trigraphs
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
 SDL_LIBS   := $(shell pkg-config --libs sdl2 2>/dev/null)
 

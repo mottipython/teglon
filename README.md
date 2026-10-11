@@ -52,7 +52,7 @@ Searching every possible choice of grooves exhaustively:
 
 | Decagon side | Result |
 |---|---|
-| 2 | solvable (21 tiles, essentially one groove layout works) |
+| 2 | solvable (21 tiles) |
 | 3, 4, 5, 6 | no solution for any choice of grooves |
 
 Each of those searches fails within about twenty tiles of the first vertex, so the
