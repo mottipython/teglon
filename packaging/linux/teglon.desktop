@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Teglon
+Comment=Watch the Teglon from Anathem being solved
+Exec=teglon --window
+Icon=teglon
+Categories=Game;LogicGame;Education;Math;
+Keywords=Anathem;tiling;screensaver;decagon;
