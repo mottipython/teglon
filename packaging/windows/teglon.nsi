@@ -3,7 +3,7 @@
 !include "FileFunc.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.0.3"
+  !define VERSION "1.0.4"
 !endif
 
 Name "Teglon ${VERSION}"

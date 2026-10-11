@@ -39,15 +39,19 @@ static int opt_w = 1920, opt_h = 1200;
 
 /* ---- colours ---- */
 typedef struct { Uint8 r, g, b; } Rgb;
-typedef struct { Rgb tile, grout, groove, glow; } Palette;
+typedef struct { Rgb tile[TG_NS], grout, groove, glow; } Palette;
+/* a colour for each shape (thin rhomb, thick rhomb, pentagon, long hexagon, squat
+ * hexagon, octagon, decagon, bow tie), so the shapes read at a distance */
 static const Palette PAL[4] = {
-    {{206, 126, 76}, {104, 60, 34}, {14, 5, 2}, {255, 226, 160}},      /* terra-cotta */
-    {{112, 150, 102}, {52, 78, 48}, {4, 12, 6}, {220, 255, 196}},     /* green */
-    {{146, 104, 72}, {74, 50, 30}, {10, 5, 2}, {255, 210, 160}},       /* brown */
-    {{226, 222, 212}, {134, 130, 124}, {6, 6, 10}, {120, 190, 255}}, /* white porcelain, black glaze */
+    {{{232, 134, 66}, {204, 92, 46}, {246, 176, 88}, {178, 70, 40}, {222, 116, 56}, {210, 104, 52}, {252, 198, 112}, {156, 56, 36}},
+     {104, 56, 30}, {14, 5, 2}, {255, 232, 170}}, /* terra-cotta */
+    {{{124, 180, 108}, {80, 148, 96}, {176, 206, 116}, {54, 122, 90}, {104, 164, 100}, {92, 156, 98}, {204, 222, 136}, {40, 104, 86}},
+     {40, 70, 46}, {4, 12, 6}, {226, 255, 200}},  /* green */
+    {{{176, 120, 74}, {146, 92, 54}, {206, 156, 98}, {120, 72, 44}, {164, 108, 64}, {154, 100, 60}, {224, 182, 124}, {100, 56, 36}},
+     {66, 42, 24}, {10, 5, 2}, {255, 214, 164}},  /* brown */
+    {{{240, 236, 226}, {214, 218, 224}, {248, 242, 222}, {194, 202, 214}, {228, 226, 218}, {220, 220, 216}, {254, 250, 236}, {178, 188, 204}},
+     {120, 118, 116}, {6, 6, 10}, {120, 190, 255}}, /* white porcelain, black glaze */
 };
-/* each shape its own tone, so the shapes read at a distance */
-static const double SHADE[TG_NS] = {1.04, 0.86, 1.16, 0.76, 0.94, 0.72, 1.10, 0.68};
 static const Rgb BG = {18, 16, 14}, MARBLE = {196, 190, 178}, MARBLE_EDGE = {120, 114, 104};
 
 /* ---- geometry buffer ---- */
@@ -354,7 +358,7 @@ static void draw_tile(const TgTile *t, int id, const Palette *p, double appear, 
     }
     double grow = 1 + 0.35 * (1 - appear) * (1 - appear);
     double jit = 0.96 + 0.08 * (hash_u((unsigned)id * 2654435761u + (unsigned)layer * 97u) & 1023) / 1023.0;
-    double k = SHADE[t->s] * jit;
+    double k = jit;
     map(t->cx, t->cy, &cx, &cy);
     for (int j = 0; j < t->n; j++)
         map(t->cx + (t->x[j] - t->cx) * grow, t->cy + (t->y[j] - t->cy) * grow, &x[j], &y[j]);
@@ -365,7 +369,7 @@ static void draw_tile(const TgTile *t, int id, const Palette *p, double appear, 
     double in = 1 - joint / (rin * vscale);
     if (in < 0.62) in = 0.62;
     for (int j = 0; j < t->n; j++) { x[j] = cx + (x[j] - cx) * in; y[j] = cy + (y[j] - cy) * in; }
-    fan(x, y, t->n, cx, cy, col(p->tile, k * 1.04, alpha), col(p->tile, k * 0.96, alpha));
+    fan(x, y, t->n, cx, cy, col(p->tile[t->s], k * 1.08, alpha), col(p->tile[t->s], k * 0.94, alpha)); /* a little sheen */
     if (t->a >= 0 && t->b >= 0 && t->a != t->b) {
         double qx[GSEG + 1], qy[GSEG + 1];
         int np = groove_pts(t, t->a, t->b, qx, qy);

@@ -33,7 +33,7 @@ porcelain with a black glazed line.
 | | |
 |---|---|
 | ![Close-up of the tiles and groove](docs/closeup.png) | ![Light running along the finished groove](docs/light.png) |
-| The seven shapes, each in its own tone | Finished: one curve, vertex to vertex |
+| The seven shapes, each in its own colour | Finished: one curve, vertex to vertex |
 | ![A second solution laid over the first](docs/layers.png) | ![The strict game](docs/strict.png) |
 | A new solution going down over the last | `--strict`: seven moulds, one groove each |
 
@@ -55,11 +55,11 @@ Packages are on the [releases page](../../releases).
 
 **Fedora, Nobara** (built on Fedora 44):
 
-    sudo dnf install ./teglon-1.0.3-1.fc44.x86_64.rpm
+    sudo dnf install ./teglon-1.0.4-1.fc44.x86_64.rpm
 
 **Debian, Ubuntu, Mint** (needs glibc 2.35 or newer, i.e. Ubuntu 22.04 / Debian 12 or later):
 
-    sudo apt install ./teglon_1.0.3_amd64.deb
+    sudo apt install ./teglon_1.0.4_amd64.deb
 
 Then turn it on for your session:
 
@@ -72,7 +72,7 @@ run `teglon` when the session goes idle. It works on compositors that provide th
 ext-idle-notify protocol: KDE Plasma, Sway, Hyprland, niri, COSMIC, labwc and
 others. GNOME does not provide it. It does not lock the screen.
 
-**Windows:** run `Teglon-Setup-1.0.3.exe`. It installs for the current user without
+**Windows:** run `Teglon-Setup-1.0.4.exe`. It installs for the current user without
 administrator rights, makes Teglon the current screensaver, and offers to open
 Screen Saver Settings. Uninstall from Apps or the Start menu. The Windows build is
 cross-compiled and has not been tested on a real Windows machine yet.
