@@ -13,7 +13,7 @@
 
 #define TG_NS 8      /* shapes known: the seven convex ones and the girih bow tie */
 #define TG_MAXV 10   /* most sides on a tile */
-#define TG_MAXT 8192 /* most tiles in a paving */
+#define TG_MAXT 32768 /* most tiles in a paving */
 
 typedef struct { int c[4]; } TgPt; /* a point of Z[zeta], zeta = exp(i*pi/5) */
 
@@ -62,6 +62,11 @@ int tg_step(void);                     /* one search step; returns a TG_ event *
  * octagons, decagons) to aim for; pent 0..1: share of octagons split into
  * pentagons. Returns 1 on success. */
 int tg_pave(double rich, double pent);
+extern double tg_bowtie;               /* share of squat hexagons laid as a bow tie and two thin rhombs */
+
+/* far = 0: the tile that fills the first corner on its own, or -1 if several share it.
+ * far = 1: a tile at the opposite corner. */
+int tg_corner_tile(int far);
 
 /* groove routing (tg_strict == 0) */
 extern int *tg_porder, tg_plen;        /* tiles on the groove so far, in order */

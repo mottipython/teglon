@@ -51,7 +51,11 @@ static int BD[NS][MAXV]; /* direction of side j in the base orientation */
 int tg_ga[NS] = {0, 0, 0, 0, 0, 0, 0, 0};
 int tg_gb[NS] = {1, 1, 1, 1, 1, 1, 1, 1};
 int tg_fixed[NS] = {1, 1, 1, 1, 1, 1, 1, 1};
-int tg_enabled[NS] = {1, 1, 1, 1, 1, 1, 1, 0}; /* the bow tie is opt-in */
+/* the seven moulds: the five girih tiles (thick rhomb, pentagon, long hexagon,
+ * decagon, bow tie), the thin rhomb that fits the Decagon's corner, and the squat
+ * hexagon. The octagon is left out. */
+int tg_enabled[NS] = {1, 1, 1, 1, 1, 0, 1, 1};
+double tg_bowtie = 0.5;
 double tg_weight[NS] = {1, 1, 1, 1, 1, 1, 1, 1};
 
 int tg_strict = 0;
@@ -580,7 +584,7 @@ void tg_init(int side, uint64_t seed)
     nt = 0; frontier = 0; s_used = g_used = 0; uf_nlog = 0; tg_nodes = 0;
     for (int i = 0; i < MAXT + 2; i++) { uf_par[i] = i; uf_rank[i] = 0; }
     vcap = 1 << 16;
-    while (vcap < (size_t)side * side * 2048) vcap <<= 1;
+    while (vcap < (size_t)side * side * 128) vcap <<= 1;
     vt = calloc(vcap, sizeof *vt); vcount = 0;
     nrim = 10 * side;
     rim = malloc(sizeof(Pt) * nrim); rimd = malloc(sizeof(int) * nrim);
@@ -754,7 +758,9 @@ static int pave_once(double rich, double pent)
     }
     free(cr); free(off);
     if (!ok || frontier != 0) return 0;
-    /* split some octagons into two pentagons and two thin rhombs */
+    /* split octagons into two pentagons and two thin rhombs: all of them if the
+     * octagon is not one of the moulds */
+    if (!tg_enabled[5]) pent = 2;
     for (int id = nt - 1; id >= 0; id--) {
         if (T[id].s != 5 || rnd01() >= pent || nt + 3 >= MAXT) continue;
         TgTile o = T[id];
@@ -762,7 +768,21 @@ static int pave_once(double rich, double pent)
         if (!(lay(2, 0, o.v[0], tdir(&o, 0)) && lay(2, 0, o.v[4], tdir(&o, 4)) &&
               lay(0, 1, o.v[2], tdir(&o, 2)) && lay(0, 1, o.v[6], tdir(&o, 6)))) return 0;
     }
+    /* a squat hexagon is also a bow tie with a thin rhomb in each notch */
+    for (int id = nt - 1; id >= 0 && tg_enabled[7]; id--) {
+        if (T[id].s != 4 || rnd01() >= (tg_enabled[4] ? tg_bowtie : 2) || nt + 2 >= MAXT) continue;
+        TgTile o = T[id];
+        take_out(id);
+        if (!(lay(7, 0, o.v[0], tdir(&o, 0)) && lay(0, 1, o.v[2], tdir(&o, 2)) && lay(0, 1, o.v[5], tdir(&o, 5)))) return 0;
+    }
     return frontier == 0;
+}
+
+int tg_corner_tile(int far)
+{
+    if (far) { int a = tile_at(corner[5], 5); return a < 0 ? -1 : a >> 4; }
+    int a = tile_at(corner[0], 0), b = tile_at(psub(corner[0], 9), 9);
+    return (a >= 0 && b >= 0 && (a >> 4) == (b >> 4)) ? a >> 4 : -1;
 }
 
 int tg_pave(double rich, double pent)
@@ -796,6 +816,15 @@ static int side_towards(int id, int other)
     for (int k = 0; k < T[id].n; k++)
         if (padj[id * MAXV + k] == other) return k;
     return -1;
+}
+/* the side by which the groove enters `id`, coming from `from`: the far face of the
+ * very edge it left by (a bow tie and the rhomb in its notch share two edges) */
+static int side_from(int id, int from)
+{
+    const TgTile *f = &T[from];
+    int k = side_towards(from, id);
+    int nb = tile_at(f->v[(k + 1) % f->n], m10(tdir(f, k) + 5));
+    return nb & 15;
 }
 static int side_on(int id, int (*test)(Pt, int))
 {
@@ -835,7 +864,7 @@ static void finish_path(void)
 {
     for (int i = 0; i < tg_plen; i++) {
         int id = tg_porder[i];
-        T[id].a = i ? side_towards(id, tg_porder[i - 1]) : pstart_side;
+        T[id].a = i ? side_from(id, tg_porder[i - 1]) : pstart_side;
         T[id].b = i + 1 < tg_plen ? side_towards(id, tg_porder[i + 1]) : side_on(id, is_goal);
     }
 }
@@ -888,7 +917,7 @@ int tg_path_step(void)
 void tg_path_sides(int i, int *in, int *out)
 {
     int id = tg_porder[i];
-    *in = i ? side_towards(id, tg_porder[i - 1]) : pstart_side;
+    *in = i ? side_from(id, tg_porder[i - 1]) : pstart_side;
     *out = i + 1 < tg_plen ? side_towards(id, tg_porder[i + 1]) : -1;
 }
 

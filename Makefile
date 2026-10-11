@@ -24,8 +24,8 @@ build/teglon: src/saver.c src/teglon.c src/teglon.h
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(SDL_CFLAGS) -o $@ src/saver.c src/teglon.c $(LDFLAGS) $(SDL_LIBS) -lm
 
 check: build/teglon-solve
-	@for n in 1 2 3 4 5 6 8 12 16 24; do ./build/teglon-solve -n $$n -s $$n -q > /dev/null || exit 1; done; echo "all sizes solved and verified"
-	@./build/teglon-solve -n 2 -g 01,12,01,xx,25,xx,05 -q > /dev/null && echo "strict side 2 solved and verified"
+	@for n in 1 2 3 4 5 6 8 12 16 24 40; do ./build/teglon-solve -n $$n -s $$n -q > /dev/null || exit 1; ./build/teglon-solve -n $$n -s $$n -x 5 -q > /dev/null || exit 1; done; echo "all sizes solved and verified"
+	@./build/teglon-solve -n 2 -x 5 -g 01,12,01,xx,25,xx,05,xx -q > /dev/null && echo "strict side 2 solved and verified"
 
 install: all
 	install -Dm755 build/teglon $(DESTDIR)$(PREFIX)/bin/teglon

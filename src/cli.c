@@ -16,6 +16,7 @@ static void usage(void)
         "  -b STEPS     strict puzzle: steps before restarting with a new seed (default 200000, 0 = never)\n"
         "  -r RICH      0..1, how many hexagons, octagons and decagons to aim for (default 0.7)\n"
         "  -p PENT      0..1, share of octagons split into pentagons (default 0.5)\n"
+        "  -t BOW       0..1, share of squat hexagons laid as bow tie + two thin rhombs (default 0.5)\n"
         "  -a N         give up after N attempts (default 0 = keep going)\n"
         "  -g GROOVES   strict puzzle: one fixed groove per mould, given as side pairs,\n"
         "               e.g. 01,12,01,02,25,03,05 (xx lets the search choose that groove)\n"
@@ -79,6 +80,7 @@ int main(int argc, char **argv)
 {
     int n = 4, quiet = 0;
     double rich = 0.7, pent = 0.5;
+    tg_enabled[5] = 1; /* the solver may use the octagon; -m or -x chooses the moulds */
     long budget = 200000, attempts = 0;
     const char *svg = NULL;
     uint64_t seed = (uint64_t)time(NULL) * 2654435761u + (uint64_t)clock();
@@ -88,6 +90,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-n")) n = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-r")) rich = atof(argv[++i]);
         else if (!strcmp(argv[i], "-p")) pent = atof(argv[++i]);
+        else if (!strcmp(argv[i], "-t")) tg_bowtie = atof(argv[++i]);
         else if (!strcmp(argv[i], "-s")) seed = strtoull(argv[++i], 0, 10);
         else if (!strcmp(argv[i], "-b")) budget = atol(argv[++i]);
         else if (!strcmp(argv[i], "-a")) attempts = atol(argv[++i]);
@@ -115,7 +118,7 @@ int main(int argc, char **argv)
         if (tg_ga[s] < 0 || tg_gb[s] < 0 || tg_ga[s] >= tg_nside[s] || tg_gb[s] >= tg_nside[s] || tg_ga[s] == tg_gb[s]) {
             fprintf(stderr, "bad groove for the %s\n", tg_name[s]); return 1;
         }
-    if (n < 1 || n > 24) { fprintf(stderr, "side must be 1..24\n"); return 1; }
+    if (n < 1 || n > 50) { fprintf(stderr, "side must be 1..50\n"); return 1; }
     tg_init(n, seed);
     long att = 1, steps = 0;
     if (tg_strict) {
