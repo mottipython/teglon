@@ -31,6 +31,37 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+/* The fraa is drawn from four pictures (walking twice, asleep, waking), cut out by
+ * tools/make_sprites.py and built into the program. */
+#ifdef _WIN32
+__asm__(".section .rdata,\"dr\"\n.global fraa_art\nfraa_art:\n.incbin \"assets/fraa.rgba\"\n.text\n");
+#else
+__asm__(".section .rodata\n.global fraa_art\nfraa_art:\n.incbin \"assets/fraa.rgba\"\n.text\n");
+#endif
+extern const unsigned char fraa_art[];
+enum { SP_WALK1, SP_WALK2, SP_SLEEP, SP_WAKE, NSPRITE };
+static struct { int w, h; const unsigned char *px; } sprite[NSPRITE];
+static SDL_Texture **cur_tex; /* the pictures, for the renderer being drawn to */
+
+static void load_sprites(void)
+{
+    const unsigned char *p = fraa_art;
+    for (int i = 0; i < NSPRITE; i++) {
+        sprite[i].w = p[0] | p[1] << 8; sprite[i].h = p[2] | p[3] << 8; sprite[i].px = p + 4;
+        p += 4 + (size_t)sprite[i].w * sprite[i].h * 4;
+    }
+}
+static void make_textures(SDL_Renderer *r, SDL_Texture **tex)
+{
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+    for (int i = 0; i < NSPRITE; i++) {
+        tex[i] = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, sprite[i].w, sprite[i].h);
+        if (!tex[i]) continue;
+        SDL_UpdateTexture(tex[i], NULL, sprite[i].px, sprite[i].w * 4);
+        SDL_SetTextureBlendMode(tex[i], SDL_BLENDMODE_BLEND);
+    }
+}
+
 #define MAXN 18
 #define CROWD 160
 
@@ -48,8 +79,7 @@ static const Rgb BG = {16, 22, 28};
 static const Rgb SEA = {150, 190, 196}, SEA_DEEP = {104, 152, 168}, FOAM = {226, 240, 236}, WAVE = {72, 120, 140};
 static const Rgb LAND = {236, 224, 190}, LAND_LOW = {222, 206, 164}, SAND = {246, 236, 206};
 static const Rgb INK = {46, 32, 22}, FAINT = {150, 126, 92}, RED = {186, 52, 34};
-static const Rgb BOLT = {228, 180, 96}, BOLT_DARK = {186, 134, 62}, SKIN = {246, 210, 172}, CHEEK = {238, 150, 130};
-static const Rgb CHORD = {130, 44, 30}, SPHERE = {110, 182, 234}, WHITE = {255, 252, 240};
+static const Rgb CHORD = {130, 44, 30}, WHITE = {255, 252, 240};
 static const Rgb LEAF = {96, 142, 84}, LEAF_DARK = {64, 106, 66}, ROOF = {190, 66, 44}, STONE = {214, 204, 186}, ROCK = {168, 150, 124};
 
 /* ---- geometry buffer ---- */
@@ -294,8 +324,8 @@ static void new_round(void)
             int ok = shore(px[i], py[i]) < 0.8;
             for (int k = 0; k < i && ok; k++) if (hypot((px[i] - px[k]) * 1.6, py[i] - py[k]) < 0.15) ok = 0;
             /* room beside the first math for a fraa to lie down */
-            if (i == 0 && shore(px[i] + 0.09, py[i] + 0.03) > 0.8) ok = 0;
-            if (i > 0 && fabs(py[i] - py[0] - 0.02) < 0.07 && px[i] > px[0] && px[i] - px[0] < 0.14) ok = 0;
+            if (i == 0 && shore(px[i] + 0.12, py[i] + 0.04) > 0.8) ok = 0;
+            if (i > 0 && fabs(py[i] - py[0] - 0.02) < 0.09 && px[i] > px[0] && px[i] - px[0] < 0.19) ok = 0;
             if (ok) break;
         }
     }
@@ -584,94 +614,27 @@ static void draw_math(int i, double pop, int visited, double ringing)
     }
 }
 
-/* his sphere: a pale blue ball with a glint on it */
-static void draw_sphere(double x, double y, double r)
+/* The fraa, with the three things an avout owns: his bolt, his chord and his sphere.
+ * (x, y) is the ground under him and tall is the height of the walking figure; the
+ * other pictures are drawn to the same scale. dir is +1 facing right, -1 left. */
+static void draw_fraa(SDL_Renderer *r, int which, double x, double y, double tall, int dir, double step)
 {
-    odisc(x, y, r, SPHERE);
-    if (edge > 0) return;
-    disc(x - r * 0.15, y - r * 0.15, r * 0.8, col(WHITE, 0.55), col(SPHERE, 0));
-    disc(x - r * 0.35, y - r * 0.38, r * 0.2, col(WHITE, 1), col(WHITE, 0.7));
-}
-static void draw_face(double hx, double hy, double s, int dir, int shut)
-{
-    odisc(hx - dir * s * 0.09, hy - s * 0.04, s * 0.47, BOLT_DARK); /* hood */
-    if (edge > 0) return;
-    disc(hx, hy, s * 0.36, col(SKIN, 1), col(SKIN, 1));
-    disc(hx + dir * s * 0.21, hy + s * 0.1, s * 0.09, col(CHEEK, 0.9), col(CHEEK, 0.5));
-    if (shut || fmod(anim_t, 3.4) < 0.13) {
-        line(hx - dir * s * 0.02, hy - s * 0.03, hx + dir * s * 0.09, hy - s * 0.005, s * 0.05, col(INK, 1));
-        line(hx + dir * s * 0.18, hy - s * 0.03, hx + dir * s * 0.29, hy - s * 0.005, s * 0.05, col(INK, 1));
-    } else {
-        disc(hx + dir * s * 0.04, hy - s * 0.04, s * 0.065, col(INK, 1), col(INK, 1));
-        disc(hx + dir * s * 0.23, hy - s * 0.04, s * 0.065, col(INK, 1), col(INK, 1));
-        disc(hx + dir * s * 0.055, hy - s * 0.06, s * 0.02, col(WHITE, 1), col(WHITE, 1));
-        disc(hx + dir * s * 0.245, hy - s * 0.06, s * 0.02, col(WHITE, 1), col(WHITE, 1));
+    double k = tall / sprite[SP_WALK1].h, w = sprite[which].w * k, h = sprite[which].h * k;
+    double bob = 0, tilt = 0;
+    if (step != 0) { bob = fabs(sin(step)) * tall * 0.05; tilt = sin(step) * 5; } /* the toddle */
+    if (which == SP_SLEEP) h *= 1 + 0.025 * sin(anim_t * 1.7);                    /* breathing */
+    disc(x, y - tall * 0.02, w * 0.42, col(INK, 0.25), col(INK, 0));
+    flush(r);
+    if (cur_tex && cur_tex[which]) {
+        SDL_FRect dst = {(float)(x - w / 2), (float)(y - h - bob), (float)w, (float)h};
+        SDL_FPoint pivot = {(float)(w / 2), (float)h};
+        SDL_RenderCopyExF(r, cur_tex[which], NULL, &dst, tilt, &pivot, dir < 0 ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
     }
-    line(hx + dir * s * 0.07, hy + s * 0.13, hx + dir * s * 0.14, hy + s * 0.17, s * 0.045, col(INK, 1)); /* a small smile */
-    line(hx + dir * s * 0.14, hy + s * 0.17, hx + dir * s * 0.21, hy + s * 0.13, s * 0.045, col(INK, 1));
-}
-
-/* The fraa, with the three things an avout owns: his bolt (the robe), his chord (the
- * rope round his middle) and his sphere. Asleep he lies with his head on the sphere;
- * awake he carries it in his arms and toddles. dir is +1 facing right, -1 left. */
-static void draw_fraa(double x, double y, double s, int dir, double step, int asleep)
-{
-    double o = s * 0.055;
-    if (asleep) {
-        double br = 1 + 0.05 * sin(anim_t * 1.7);
-        disc(x + s * 0.2, y + s * 0.02, s * 1.2, col(INK, 0.2), col(INK, 0)); /* shadow */
-        for (edge = o; edge >= 0; edge -= o) {
-            draw_sphere(x - s * 0.78, y - s * 0.4, s * 0.42); /* his pillow */
-            oline(x - s * 0.3, y - s * 0.34, x + s * 0.95, y - s * 0.3, s * 0.64 * br, BOLT); /* the bolt, lying down */
-            odisc(x + s * 1.27, y - s * 0.38, s * 0.13, INK); /* feet */
-            odisc(x + s * 1.3, y - s * 0.19, s * 0.13, INK);
-            draw_face(x - s * 0.55, y - s * 0.78, s, 1, 1);
-            if (edge <= 0) break;
+    if (which == SP_SLEEP)
+        for (int q = 0; q < 3; q++) { /* zzz */
+            double u = fmod(anim_t * 0.4 + q / 3.0, 1.0), zs = tall * (0.012 + 0.02 * u);
+            text("Z", x - w * 0.12 + tall * 0.3 * u, y - h - tall * (0.12 + 0.5 * u), zs, 1.0, col(INK, 0.95 * sin(u * M_PI)));
         }
-        edge = 0;
-        line(x - s * 0.12, y - s * 0.6, x + s * 0.16, y - s * 0.06, s * 0.05, col(BOLT_DARK, 0.9)); /* a fold */
-        /* the chord round his middle, knotted, ends trailing */
-        line(x + s * 0.42, y - s * 0.64 * br, x + s * 0.42, y + s * 0.0, s * 0.12, col(CHORD, 1));
-        disc(x + s * 0.42, y - s * 0.62 * br, s * 0.1, col(CHORD, 1), col(CHORD, 1));
-        line(x + s * 0.42, y - s * 0.62 * br, x + s * 0.62, y - s * 0.84, s * 0.07, col(CHORD, 1));
-        line(x + s * 0.42, y - s * 0.62 * br, x + s * 0.72, y - s * 0.68, s * 0.07, col(CHORD, 1));
-        for (int k = 0; k < 3; k++) { /* zzz */
-            double u = fmod(anim_t * 0.4 + k / 3.0, 1.0), zs = s * (0.04 + 0.06 * u);
-            text("Z", x - s * 0.15 + s * 0.9 * u, y - s * (1.5 + 1.5 * u), zs, 1.0, col(INK, 0.95 * sin(u * M_PI)));
-        }
-        return;
-    }
-    double bob = fabs(sin(step)) * s * 0.13, sway = sin(step) * s * 0.07; /* the toddle */
-    double by = y - bob, bx = x + sway, f = sin(step) * s * 0.26;
-    double sx = bx + dir * s * 0.5, sy = by - s * 0.66;
-    disc(x, y + s * 0.06, s * 0.66, col(INK, 0.22), col(INK, 0)); /* shadow */
-    for (edge = o; edge >= 0; edge -= o) {
-        odisc(x + f, y, s * 0.15, INK); /* feet */
-        odisc(x - f, y - s * 0.02, s * 0.15, INK);
-        oline(bx - dir * s * 0.1, by - s * 0.86, sx + dir * s * 0.05, sy - s * 0.3, s * 0.16, BOLT_DARK); /* far arm */
-        oquad(bx - s * 0.52, by - s * 0.12, bx + s * 0.52, by - s * 0.12, bx + s * 0.3, by - s * 1.0, bx - s * 0.3, by - s * 1.0, BOLT); /* the bolt */
-        odisc(bx, by - s * 0.22, s * 0.52, BOLT);
-        odisc(bx, by - s * 0.95, s * 0.32, BOLT);
-        if (edge <= 0) break;
-    }
-    edge = 0;
-    quad(bx - s * 0.5, by - s * 0.2, bx + s * 0.5, by - s * 0.2, bx + s * 0.32, by - s * 0.95, bx - s * 0.32, by - s * 0.95, col(BOLT, 1));
-    line(bx - dir * s * 0.28, by - s * 1.0, bx + dir * s * 0.3, by - s * 0.05, s * 0.05, col(BOLT_DARK, 0.9)); /* a fold */
-    /* the chord, knotted, ends hanging */
-    line(bx - s * 0.46, by - s * 0.5, bx + s * 0.46, by - s * 0.5, s * 0.12, col(CHORD, 1));
-    disc(bx - dir * s * 0.18, by - s * 0.5, s * 0.11, col(CHORD, 1), col(CHORD, 1));
-    line(bx - dir * s * 0.18, by - s * 0.5, bx - dir * s * 0.27, by - s * 0.12, s * 0.07, col(CHORD, 1));
-    line(bx - dir * s * 0.18, by - s * 0.5, bx - dir * s * 0.07, by - s * 0.16, s * 0.07, col(CHORD, 1));
-    /* the sphere, carried in both arms */
-    for (edge = o; edge >= 0; edge -= o) {
-        draw_sphere(sx, sy, s * 0.38);
-        oline(bx + dir * s * 0.12, by - s * 0.8, sx + dir * s * 0.18, sy + s * 0.2, s * 0.17, BOLT); /* near arm */
-        odisc(sx + dir * s * 0.2, sy + s * 0.22, s * 0.1, SKIN);
-        odisc(sx + dir * s * 0.07, sy - s * 0.32, s * 0.09, SKIN);
-        draw_face(bx + dir * s * 0.05, by - s * 1.3, s, dir, 0);
-        if (edge <= 0) break;
-    }
-    edge = 0;
 }
 
 /* the caption, on a strip of paper pinned across the bottom of the sheet */
@@ -776,16 +739,18 @@ static void draw_scene(SDL_Renderer *r, int w, int h)
     /* he dozes beside his math while the machines work, and again when he gets back */
     int awake = (state == ST_WALK && gone < best_len) || (state == ST_SETTLE && st_time > T_SETTLE * 0.5);
     if (state != ST_MAP || st_time > 1.6) {
-        double s = unit * 3.9, ox = walking ? 0 : unit * (awake ? 4.6 : 6.8), oy = walking ? unit * 0.6 : unit * 2.0;
-        draw_fraa(fx + ox, fy + oy, s, walking ? dir : 1, walking ? st_time * 10 : 0, !awake);
-        if (state == ST_SETTLE && awake) text("!", fx + ox + s * 0.75, fy + oy - s * 2.5, unit * 0.5, 1.2, col(RED, 1));
+        double tall = unit * 10;
+        if (walking) draw_fraa(r, fmod(st_time * 7, 2 * M_PI) < M_PI ? SP_WALK1 : SP_WALK2, fx, fy + unit * 1.0, tall, dir, st_time * 7);
+        else if (!awake) draw_fraa(r, SP_SLEEP, fx + unit * 8.2, fy + unit * 3.0, tall, 1, 0);
+        else if (state == ST_SETTLE) draw_fraa(r, SP_WAKE, fx + unit * 7.0, fy + unit * 3.2, tall, 1, 0);
+        else draw_fraa(r, SP_WALK1, fx + unit * 5.0, fy + unit * 2.8, tall, dir, 0); /* stopped at a math */
     }
     draw_caption(w, h, l1, l2);
     flush(r);
     if (fade < 1) { rect(0, 0, w, h, col(BG, 1 - (fade < 0 ? 0 : fade))); flush(r); }
 }
 
-typedef struct { SDL_Window *win; SDL_Renderer *ren; SDL_Texture *scene; int w, h; } View;
+typedef struct { SDL_Window *win; SDL_Renderer *ren; SDL_Texture *scene, *tex[NSPRITE]; int w, h; } View;
 
 static void size_view(View *v)
 {
@@ -809,6 +774,7 @@ static void size_view(View *v)
 static void render(View *v)
 {
     if (v->scene) SDL_SetRenderTarget(v->ren, v->scene);
+    cur_tex = v->tex;
     draw_scene(v->ren, v->w, v->h);
     if (v->scene) { SDL_SetRenderTarget(v->ren, NULL); SDL_RenderCopy(v->ren, v->scene, NULL, NULL); }
     SDL_RenderPresent(v->ren);
@@ -826,6 +792,7 @@ static int make_view(View *v, int display)
     if (!v->ren) v->ren = SDL_CreateRenderer(v->win, -1, SDL_RENDERER_SOFTWARE);
     if (!v->ren) return 0;
     SDL_SetRenderDrawBlendMode(v->ren, SDL_BLENDMODE_BLEND);
+    make_textures(v->ren, v->tex);
     return 1;
 }
 
@@ -843,6 +810,9 @@ static int snapshot(void)
     SDL_Renderer *r = surf ? SDL_CreateSoftwareRenderer(surf) : NULL;
     if (!r) { fprintf(stderr, "lazy-peregrin: %s\n", SDL_GetError()); return 1; }
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+    SDL_Texture *tex[NSPRITE];
+    make_textures(r, tex);
+    cur_tex = tex;
     start_show();
     for (double t = 0; t < opt_time; t += 1.0 / 60) update(1.0 / 60);
     draw_scene(r, opt_w, opt_h);
@@ -891,6 +861,7 @@ int main(int argc, char **argv)
     if (opt_min > MAXN) opt_min = MAXN;
     if (opt_max < opt_min) opt_max = opt_min;
     if (opt_speed < 0.05) opt_speed = 0.05;
+    load_sprites();
 
     if (opt_snapshot) return snapshot();
     SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1");

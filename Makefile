@@ -23,7 +23,7 @@ build/teglon: src/saver.c src/teglon.c src/teglon.h
 	@mkdir -p build
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(SDL_CFLAGS) -o $@ src/saver.c src/teglon.c $(LDFLAGS) $(SDL_LIBS) -lm
 
-build/lazy-peregrin: src/peregrin.c
+build/lazy-peregrin: src/peregrin.c assets/fraa.rgba
 	@mkdir -p build
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(SDL_CFLAGS) -o $@ src/peregrin.c $(LDFLAGS) $(SDL_LIBS) -lm
 
