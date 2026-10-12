@@ -23,9 +23,9 @@ build/teglon: src/saver.c src/teglon.c src/teglon.h
 	@mkdir -p build
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(SDL_CFLAGS) -o $@ src/saver.c src/teglon.c $(LDFLAGS) $(SDL_LIBS) -lm
 
-build/lazy-peregrin: src/peregrin.c assets/fraa.rgba
+build/lazy-peregrin: src/peregrin.c src/stb_image.h $(wildcard assets/art/*)
 	@mkdir -p build
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(SDL_CFLAGS) -o $@ src/peregrin.c $(LDFLAGS) $(SDL_LIBS) -lm
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(SDL_CFLAGS) -Isrc -o $@ src/peregrin.c $(LDFLAGS) $(SDL_LIBS) -lm
 
 check: build/teglon-solve
 	@for n in 1 2 3 4 5 6 8 12 16 24 40; do ./build/teglon-solve -n $$n -s $$n -q > /dev/null || exit 1; ./build/teglon-solve -n $$n -s $$n -x 5 -q > /dev/null || exit 1; done; echo "all sizes solved and verified"
@@ -72,7 +72,7 @@ windows:
 	    -o build/win/Teglon.scr src/saver.c src/teglon.c \
 	    -L$(MINGW_ROOT)/lib -lmingw32 -lSDL2main -lSDL2 -lm -mwindows -static-libgcc
 	$(MINGW)-gcc -O2 -std=gnu11 -Wall -I$(MINGW_ROOT)/include/SDL2 -Dmain=SDL_main \
-	    -o build/win/LazyPeregrin.scr src/peregrin.c \
+	    -Isrc -o build/win/LazyPeregrin.scr src/peregrin.c \
 	    -L$(MINGW_ROOT)/lib -lmingw32 -lSDL2main -lSDL2 -lm -mwindows -static-libgcc
 	$(MINGW)-strip build/win/Teglon.scr build/win/LazyPeregrin.scr build/win/teglon-solve.exe
 	cp $(MINGW_ROOT)/bin/SDL2.dll build/win/

@@ -31,30 +31,61 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-/* The fraa is drawn from four pictures (walking twice, asleep, waking), cut out by
- * tools/make_sprites.py and built into the program. */
-#ifdef _WIN32
-__asm__(".section .rdata,\"dr\"\n.global fraa_art\nfraa_art:\n.incbin \"assets/fraa.rgba\"\n.text\n");
-#else
-__asm__(".section .rodata\n.global fraa_art\nfraa_art:\n.incbin \"assets/fraa.rgba\"\n.text\n");
+/* The pictures (drawn with Gemini, prepared by tools/make_sprites.py) are built
+ * into the program as PNG and JPEG files and decoded at start-up. */
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
 #endif
-extern const unsigned char fraa_art[];
-enum { SP_WALK1, SP_WALK2, SP_SLEEP, SP_WAKE, NSPRITE };
-static struct { int w, h; const unsigned char *px; } sprite[NSPRITE];
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_ONLY_JPEG
+#define STBI_NO_STDIO
+#include "stb_image.h"
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+
+#ifdef _WIN32
+#define ART_SECTION ".section .rdata,\"dr\"\n"
+#else
+#define ART_SECTION ".section .rodata\n"
+#endif
+#define ART(name, file) \
+    __asm__(ART_SECTION ".global art_" #name "\nart_" #name ":\n.incbin \"assets/art/" file "\"\n" \
+            ".global art_" #name "_end\nart_" #name "_end:\n.text\n"); \
+    extern const unsigned char art_##name[], art_##name##_end[];
+ART(walk1, "walk1.png") ART(walk2, "walk2.png") ART(sleep, "sleep.png") ART(wake, "wake.png")
+ART(math, "math.png") ART(home, "home.png") ART(flag, "flag.png") ART(tree1, "tree1.png") ART(tree2, "tree2.png")
+ART(mountain, "mountain.png") ART(hill, "hill.png") ART(compass, "compass.png") ART(banner, "banner.png")
+ART(sea, "sea.jpg") ART(land, "land.jpg")
+
+enum { SP_WALK1, SP_WALK2, SP_SLEEP, SP_WAKE, SP_MATH, SP_HOME, SP_FLAG, SP_TREE1, SP_TREE2,
+       SP_MOUNTAIN, SP_HILL, SP_COMPASS, SP_BANNER, SP_SEA, SP_LAND, NSPRITE };
+static struct { const unsigned char *file, *end; int w, h; unsigned char *px; } sprite[NSPRITE] = {
+    {art_walk1, art_walk1_end}, {art_walk2, art_walk2_end}, {art_sleep, art_sleep_end}, {art_wake, art_wake_end},
+    {art_math, art_math_end}, {art_home, art_home_end}, {art_flag, art_flag_end}, {art_tree1, art_tree1_end},
+    {art_tree2, art_tree2_end}, {art_mountain, art_mountain_end}, {art_hill, art_hill_end},
+    {art_compass, art_compass_end}, {art_banner, art_banner_end}, {art_sea, art_sea_end}, {art_land, art_land_end},
+};
 static SDL_Texture **cur_tex; /* the pictures, for the renderer being drawn to */
 
 static void load_sprites(void)
 {
-    const unsigned char *p = fraa_art;
     for (int i = 0; i < NSPRITE; i++) {
-        sprite[i].w = p[0] | p[1] << 8; sprite[i].h = p[2] | p[3] << 8; sprite[i].px = p + 4;
-        p += 4 + (size_t)sprite[i].w * sprite[i].h * 4;
+        int n;
+        sprite[i].px = stbi_load_from_memory(sprite[i].file, (int)(sprite[i].end - sprite[i].file), &sprite[i].w, &sprite[i].h, &n, 4);
+        if (!sprite[i].px) { sprite[i].w = sprite[i].h = 1; }
     }
 }
 static void make_textures(SDL_Renderer *r, SDL_Texture **tex)
 {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
     for (int i = 0; i < NSPRITE; i++) {
+        tex[i] = NULL;
+        if (!sprite[i].px) continue;
         tex[i] = SDL_CreateTexture(r, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, sprite[i].w, sprite[i].h);
         if (!tex[i]) continue;
         SDL_UpdateTexture(tex[i], NULL, sprite[i].px, sprite[i].w * 4);
@@ -76,11 +107,10 @@ static int opt_w = 1920, opt_h = 1200;
 /* ---- colours ---- */
 typedef struct { Uint8 r, g, b; } Rgb;
 static const Rgb BG = {16, 22, 28};
-static const Rgb SEA = {150, 190, 196}, SEA_DEEP = {104, 152, 168}, FOAM = {226, 240, 236}, WAVE = {72, 120, 140};
+static const Rgb SEA = {138, 190, 190}, FOAM = {226, 240, 236};
 static const Rgb LAND = {236, 224, 190}, LAND_LOW = {222, 206, 164}, SAND = {246, 236, 206};
-static const Rgb INK = {46, 32, 22}, FAINT = {150, 126, 92}, RED = {186, 52, 34};
-static const Rgb CHORD = {130, 44, 30}, WHITE = {255, 252, 240};
-static const Rgb LEAF = {96, 142, 84}, LEAF_DARK = {64, 106, 66}, ROOF = {190, 66, 44}, STONE = {214, 204, 186}, ROCK = {168, 150, 124};
+static const Rgb INK = {46, 32, 22}, RED = {186, 52, 34};
+static const Rgb CHORD = {130, 44, 30};
 
 /* ---- geometry buffer ---- */
 static SDL_Vertex *vb;
@@ -156,6 +186,25 @@ static void flush(SDL_Renderer *r)
     nv = ni = 0;
 }
 
+static SDL_Renderer *ren; /* where the current frame is being drawn */
+
+/* a picture stretched over a rectangle; sx0..sx1 picks a slice of it across (0..1) */
+static void pic_part(int which, double x, double y, double w, double h, double sx0, double sx1, double tilt, int flip)
+{
+    flush(ren);
+    if (!cur_tex || !cur_tex[which]) return;
+    SDL_Rect src = {(int)(sx0 * sprite[which].w), 0, (int)((sx1 - sx0) * sprite[which].w), sprite[which].h};
+    SDL_FRect dst = {(float)x, (float)y, (float)w, (float)h};
+    SDL_FPoint pivot = {(float)(w / 2), (float)h};
+    SDL_RenderCopyExF(ren, cur_tex[which], &src, &dst, tilt, &pivot, flip ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+}
+/* a picture `tall` high, standing with the point (ax, ay) of it (0..1 across and down) at (x, y) */
+static void pic(int which, double x, double y, double tall, double ax, double ay)
+{
+    double w = tall * sprite[which].w / sprite[which].h;
+    pic_part(which, x - w * ax, y - tall * ay, w, tall, 0, 1, 0, 0);
+}
+
 /* ---- lettering: pen strokes on a 4 x 6 grid, drawn with a round nib ---- */
 static const char *GLYPH[] = {
     "A06 02 20 42 46|04 44", "B00 06 36 45 44 33 03|33 42 41 30 00", "C41 30 10 01 05 16 36 45",
@@ -217,8 +266,7 @@ static uint64_t seed_state;
 static double coast_amp[5], coast_ph[5];
 #define NTREE 46
 #define NHILL 9
-#define NWAVE 70
-static double tree_x[NTREE], tree_y[NTREE], hill_x[NHILL], hill_y[NHILL], wave_x[NWAVE], wave_y[NWAVE];
+static double tree_x[NTREE], tree_y[NTREE], hill_x[NHILL], hill_y[NHILL];
 
 static uint64_t next_rand(void)
 {
@@ -311,6 +359,8 @@ static int next_perm(int *a, int n)
 static int clear_of_maths(double x, double y, double gap)
 {
     for (int k = 0; k < N; k++) if (hypot((x - px[k]) * 1.6, y - py[k]) < gap) return 0;
+    /* and of the patch beside the first math where the fraa sleeps */
+    if (x > px[0] - 0.02 && x < px[0] + 0.2 && fabs(y - py[0] - 0.01) < 0.11) return 0;
     return 1;
 }
 
@@ -343,11 +393,6 @@ static void new_round(void)
             if (i % 6 == 0 || tries > 40) { tree_x[i] = frand(); tree_y[i] = frand(); }
             else { tree_x[i] = tree_x[i - i % 6] + (frand() - 0.5) * 0.07; tree_y[i] = tree_y[i - i % 6] + (frand() - 0.5) * 0.09; }
             if (shore(tree_x[i], tree_y[i]) < 0.86 && clear_of_maths(tree_x[i], tree_y[i], 0.085)) break;
-        }
-    for (int i = 0; i < NWAVE; i++)
-        for (int tries = 0; tries < 300; tries++) {
-            wave_x[i] = frand(); wave_y[i] = frand();
-            if (shore(wave_x[i], wave_y[i]) > 1.12) break;
         }
     solve_exact();
     routes_total = 1;
@@ -460,21 +505,6 @@ static double mx0, my0, mw, mh, unit; /* the map on screen; unit = a convenient 
 static inline void mxy(double x, double y, double *ox, double *oy) { *ox = mx0 + x * mw; *oy = my0 + y * mh; }
 static inline void mp(int i, double *x, double *y) { mxy(px[i], py[i], x, y); }
 
-/* Things drawn with an inked edge are drawn twice: once fattened in ink, once in
- * colour. edge > 0 means this is the ink pass. */
-static double edge;
-static inline SDL_Color ec(Rgb c) { return col(edge > 0 ? INK : c, 1); }
-static void odisc(double x, double y, double r, Rgb c) { disc(x, y, r + edge, ec(c), ec(c)); }
-static void oline(double x0, double y0, double x1, double y1, double w, Rgb c) { line(x0, y0, x1, y1, w + 2 * edge, ec(c)); }
-static void oquad(double x0, double y0, double x1, double y1, double x2, double y2, double x3, double y3, Rgb c)
-{
-    if (edge > 0) {
-        line(x0, y0, x1, y1, 2 * edge, ec(c)); line(x1, y1, x2, y2, 2 * edge, ec(c));
-        line(x2, y2, x3, y3, 2 * edge, ec(c)); line(x3, y3, x0, y0, 2 * edge, ec(c));
-    }
-    quad(x0, y0, x1, y1, x2, y2, x3, y3, ec(c));
-}
-
 static void island_outline(double grow, double *x, double *y)
 {
     for (int i = 0; i < NCOAST; i++) {
@@ -494,77 +524,70 @@ static void island_fill(double grow, double oy, SDL_Color centre, SDL_Color rim)
     for (int i = 0; i < NCOAST; i++) { ib[ni++] = b; ib[ni++] = b + 1 + i; ib[ni++] = b + 1 + (i + 1) % NCOAST; }
 }
 
+static void island_picture(double grow)
+{
+    double x[NCOAST], y[NCOAST], cx, cy;
+    SDL_Color white = {255, 255, 255, 255};
+    island_outline(grow, x, y);
+    mxy(0.5, 0.5, &cx, &cy);
+    flush(ren);
+    vb_need(NCOAST + 1, 3 * NCOAST);
+    vert(cx, cy, white);
+    vb[0].tex_coord.x = vb[0].tex_coord.y = 0.5f;
+    for (int i = 0; i < NCOAST; i++) {
+        vert(x[i], y[i], white);
+        /* the picture's darker edge follows the coast */
+        double th = i * 2 * M_PI / NCOAST;
+        vb[nv - 1].tex_coord.x = (float)(0.5 + 0.49 * cos(th)); vb[nv - 1].tex_coord.y = (float)(0.5 + 0.49 * sin(th));
+    }
+    for (int i = 0; i < NCOAST; i++) { ib[ni++] = 0; ib[ni++] = 1 + i; ib[ni++] = 1 + (i + 1) % NCOAST; }
+    if (cur_tex && cur_tex[SP_LAND]) SDL_RenderGeometry(ren, cur_tex[SP_LAND], vb, nv, ib, ni);
+    nv = ni = 0;
+}
+
 static void draw_map(int w, int h)
 {
     double m = (w < h ? w : h) * 0.03;
-    /* the sheet: sea, deeper toward the edges */
+    /* the sheet: sea, with a ship and a serpent in it */
     rect(m * 0.5, m * 0.5, w - m, h - m, col(INK, 1));
-    double x0 = m * 0.75, y0 = m * 0.75, x1 = w - m * 0.75, y1 = h - m * 0.75, cx = w / 2.0, cy = h / 2.0;
-    SDL_Color deep = col(SEA_DEEP, 1), mid = col(SEA, 1);
-    quad4(x0, y0, x1, y0, cx, cy, cx, cy, deep, deep, mid, mid); quad4(x1, y0, x1, y1, cx, cy, cx, cy, deep, deep, mid, mid);
-    quad4(x1, y1, x0, y1, cx, cy, cx, cy, deep, deep, mid, mid); quad4(x0, y1, x0, y0, cx, cy, cx, cy, deep, deep, mid, mid);
-    /* little waves */
-    for (int i = 0; i < NWAVE; i++) {
-        double x, y, u = unit, ph = sin(anim_t * 0.8 + i) * u * 0.25;
-        mxy(wave_x[i], wave_y[i], &x, &y);
-        x += ph;
-        SDL_Color c = col(WAVE, 0.5);
-        line(x - u * 1.0, y, x - u * 0.5, y - u * 0.3, u * 0.14, c); line(x - u * 0.5, y - u * 0.3, x, y, u * 0.14, c);
-        line(x, y, x + u * 0.5, y - u * 0.3, u * 0.14, c); line(x + u * 0.5, y - u * 0.3, x + u * 1.0, y, u * 0.14, c);
-    }
+    rect(m * 0.75, m * 0.75, w - m * 1.5, h - m * 1.5, col(SEA, 1));
+    pic_part(SP_SEA, m * 0.75, m * 0.75, w - m * 1.5, h - m * 1.5, 0, 1, 0, 0);
     /* the island: shallows, beach, an inked coast, and the land itself */
     island_fill(1.085, 0, col(FOAM, 0.55), col(FOAM, 0.0));
     island_fill(1.035, 0, col(FOAM, 0.75), col(FOAM, 0.75));
     island_fill(1.0, unit * 0.5, col(INK, 0.35), col(INK, 0.35));
     island_fill(1.0, 0, col(INK, 1), col(INK, 1));
     island_fill(0.985, 0, col(SAND, 1), col(SAND, 1));
-    island_fill(0.95, 0, col(LAND, 1), col(LAND_LOW, 1));
+    island_fill(0.955, 0, col(LAND, 1), col(LAND_LOW, 1));
+    island_picture(0.955);
 }
 
 static void draw_scenery(void)
 {
     double u = unit;
-    for (int i = 0; i < NHILL; i++) { /* a couple of peaks, lit from the left */
+    for (int i = 0; i < NHILL; i++) {
         double x, y;
         mxy(hill_x[i], hill_y[i], &x, &y);
-        for (edge = u * 0.14; edge >= 0; edge -= u * 0.14) {
-            oquad(x - u * 2.2, y + u * 1.1, x + u * 1.6, y + u * 1.1, x - u * 0.2, y - u * 1.6, x - u * 0.2, y - u * 1.6, STONE);
-            oquad(x + u * 0.2, y + u * 1.1, x + u * 3.0, y + u * 1.1, x + u * 1.5, y - u * 0.7, x + u * 1.5, y - u * 0.7, STONE);
-            if (edge <= 0) break;
-        }
-        edge = 0;
-        quad(x - u * 0.2, y - u * 1.6, x + u * 1.6, y + u * 1.1, x + u * 0.3, y + u * 1.1, x - u * 0.2, y - u * 0.2, col(ROCK, 0.85));
-        quad(x + u * 1.5, y - u * 0.7, x + u * 3.0, y + u * 1.1, x + u * 2.0, y + u * 1.1, x + u * 1.5, y + u * 0.1, col(ROCK, 0.85));
-        quad(x - u * 0.2, y - u * 1.6, x + u * 0.25, y - u * 0.9, x - u * 0.2, y - u * 0.75, x - u * 0.65, y - u * 0.9, col(WHITE, 0.95));
+        disc(x, y, u * 2.6, col(INK, 0.14), col(INK, 0));
+        if (i % 3 == 2) pic(SP_HILL, x, y + u * 0.6, u * 3.4, 0.5, 1);
+        else pic(SP_MOUNTAIN, x, y + u * 0.8, u * 5.6, 0.5, 1);
     }
     for (int i = 0; i < NTREE; i++) {
         double x, y;
         mxy(tree_x[i], tree_y[i], &x, &y);
-        disc(x + u * 0.1, y + u * 0.75, u * 0.6, col(INK, 0.16), col(INK, 0));
-        for (edge = u * 0.12; edge >= 0; edge -= u * 0.12) {
-            oline(x, y + u * 0.7, x, y, u * 0.2, CHORD);
-            odisc(x, y - u * 0.35, u * 0.72, LEAF);
-            if (edge <= 0) break;
-        }
-        edge = 0;
-        disc(x + u * 0.22, y - u * 0.2, u * 0.42, col(LEAF_DARK, 0.75), col(LEAF_DARK, 0.75));
-        disc(x - u * 0.2, y - u * 0.55, u * 0.22, col(WHITE, 0.3), col(WHITE, 0));
+        disc(x, y, u * 1.0, col(INK, 0.18), col(INK, 0));
+        if ((i / 6) % 3 == 1) pic(SP_TREE2, x, y + u * 0.3, u * 3.6, 0.5, 1);
+        else pic(SP_TREE1, x, y + u * 0.3, u * 3.1, 0.5, 1);
     }
 }
 
 /* a compass rose out at sea */
 static void draw_compass(void)
 {
-    double cx = mx0 + mw - unit * 6.5, cy = my0 + unit * 7, r = unit * 3.6;
-    ring(cx, cy, r * 0.7, unit * 0.16, col(INK, 0.75));
-    ring(cx, cy, r * 0.55, unit * 0.08, col(INK, 0.55));
-    for (int k = 0; k < 8; k++) {
-        double a = k * M_PI / 4, ca = cos(a), sa = sin(a), len = k % 2 ? r * 0.6 : r, w2 = r * 0.15;
-        SDL_Color c0 = col(k == 6 ? RED : INK, 0.9), c1 = col(WHITE, 0.9);
-        quad(cx + ca * len, cy + sa * len, cx - sa * w2, cy + ca * w2, cx, cy, cx, cy, c0);
-        quad(cx + ca * len, cy + sa * len, cx + sa * w2, cy - ca * w2, cx, cy, cx, cy, k % 2 ? c0 : c1);
-    }
-    text("N", cx, cy - r - unit * 2.6, unit * 0.3, 0.7, col(INK, 0.9));
+    double cx = mx0 + mw - unit * 7.2, cy = my0 + unit * 7.4;
+    disc(cx + unit * 0.3, cy + unit * 0.4, unit * 4.9, col(INK, 0.25), col(INK, 0.05));
+    pic(SP_COMPASS, cx, cy, unit * 9.2, 0.5, 0.5);
+    text("N", cx, cy - unit * 7.4, unit * 0.34, 0.9, col(INK, 0.95));
 }
 
 static void draw_route(const int *t, double w, SDL_Color c)
@@ -576,60 +599,40 @@ static void draw_route(const int *t, double w, SDL_Color c)
     }
 }
 
-/* a math: a round wall with a gate, a clock tower with a red roof, and a pennant
- * once the fraa has called */
+/* a math: a walled close with a clock tower. The bells ring the fraa in, and a
+ * pennant goes up once he has called. */
 static void draw_math(int i, double pop, int visited, double ringing)
 {
-    double x, y, r = unit * (i == 0 ? 2.5 : 2.0) * pop, u = unit * pop;
+    double x, y, u = unit * pop, tall = u * (i == 0 ? 9.6 : 6.6);
+    int which = i == 0 ? SP_HOME : SP_MATH;
+    double w = tall * sprite[which].w / sprite[which].h;
+    /* where the middle of the close and the top of the tower are in each picture */
+    double ax = 0.5, ay = i == 0 ? 0.72 : 0.7, tx = i == 0 ? 0.795 : 0.42, ty = i == 0 ? 0.05 : 0.02;
     mp(i, &x, &y);
-    if (ringing > 0) { /* the bells ring him in */
-        ring(x, y, r * (1.2 + 2.0 * ringing), u * 0.26, col(RED, 0.85 * (1 - ringing)));
-        ring(x, y, r * (1.0 + 1.2 * ringing), u * 0.2, col(RED, 0.6 * (1 - ringing)));
+    disc(x + u * 0.3, y + tall * 0.12, w * 0.55, col(INK, 0.28), col(INK, 0));
+    if (ringing > 0) {
+        ring(x, y, w * (0.5 + 0.9 * ringing), u * 0.3, col(RED, 0.85 * (1 - ringing)));
+        ring(x, y, w * (0.4 + 0.5 * ringing), u * 0.22, col(RED, 0.6 * (1 - ringing)));
     }
-    disc(x + u * 0.2, y + r * 0.35, r * 1.1, col(INK, 0.25), col(INK, 0));
-    if (i == 0) ring(x, y, r * 1.32, u * 0.2, col(RED, 1));
-    disc(x, y, r + u * 0.18, col(INK, 1), col(INK, 1));
-    disc(x, y, r, col(STONE, 1), col(STONE, 1));
-    disc(x, y, r * 0.74, col(INK, 1), col(INK, 1));
-    disc(x, y, r * 0.74 - u * 0.16, col(LEAF, 0.55), col(SAND, 1)); /* the close */
-    rect(x - r * 0.16, y + r * 0.62, r * 0.32, r * 0.5, col(INK, 1));   /* the gate */
-    double tw = r * 0.46, th = r * 1.45, ty = y + r * 0.3;
-    for (edge = u * 0.16; edge >= 0; edge -= u * 0.16) {
-        oquad(x - tw / 2, ty - th, x + tw / 2, ty - th, x + tw / 2, ty, x - tw / 2, ty, WHITE);
-        oquad(x - tw * 0.85, ty - th, x + tw * 0.85, ty - th, x, ty - th - r * 0.7, x, ty - th - r * 0.7, ROOF);
-        if (edge <= 0) break;
-    }
-    edge = 0;
-    rect(x, ty - th, tw / 2, th, col(INK, 0.12));
-    disc(x, ty - th * 0.7, tw * 0.33, col(INK, 1), col(INK, 1)); /* the clock */
-    disc(x, ty - th * 0.7, tw * 0.22, col(WHITE, 1), col(WHITE, 1));
-    line(x, ty - th * 0.7, x, ty - th * 0.7 - tw * 0.16, u * 0.08, col(INK, 1));
-    line(x, ty - th * 0.7, x + tw * 0.11, ty - th * 0.7, u * 0.08, col(INK, 1));
-    if (visited) {
-        double fx = x, fy = ty - th - r * 0.68;
-        line(fx, fy, fx, fy - r * 0.8, u * 0.14, col(INK, 1));
-        double wv = sin(anim_t * 5 + i) * r * 0.06;
-        quad(fx, fy - r * 0.8, fx + r * 0.7, fy - r * 0.62 + wv, fx, fy - r * 0.42, fx, fy - r * 0.42, col(INK, 1));
-        quad(fx + u * 0.1, fy - r * 0.74, fx + r * 0.56, fy - r * 0.62 + wv, fx + u * 0.1, fy - r * 0.49, fx + u * 0.1, fy - r * 0.49, col(RED, 1));
+    pic(which, x, y, tall, ax, ay);
+    if (visited && i != 0) {
+        double fx = x + w * (tx - ax), fy = y + tall * (ty - ay), ft = u * 2.7;
+        double fw = ft * sprite[SP_FLAG].w / sprite[SP_FLAG].h;
+        pic_part(SP_FLAG, fx - fw * 0.07, fy - ft * 0.92, fw, ft, 0, 1, sin(anim_t * 3 + i) * 3, 0);
     }
 }
 
 /* The fraa, with the three things an avout owns: his bolt, his chord and his sphere.
  * (x, y) is the ground under him and tall is the height of the walking figure; the
  * other pictures are drawn to the same scale. dir is +1 facing right, -1 left. */
-static void draw_fraa(SDL_Renderer *r, int which, double x, double y, double tall, int dir, double step)
+static void draw_fraa(int which, double x, double y, double tall, int dir, double step)
 {
     double k = tall / sprite[SP_WALK1].h, w = sprite[which].w * k, h = sprite[which].h * k;
     double bob = 0, tilt = 0;
-    if (step != 0) { bob = fabs(sin(step)) * tall * 0.05; tilt = sin(step) * 5; } /* the toddle */
+    if (step != 0) { bob = fabs(sin(step)) * tall * 0.05; tilt = sin(step) * 4; } /* the toddle */
     if (which == SP_SLEEP) h *= 1 + 0.025 * sin(anim_t * 1.7);                    /* breathing */
-    disc(x, y - tall * 0.02, w * 0.42, col(INK, 0.25), col(INK, 0));
-    flush(r);
-    if (cur_tex && cur_tex[which]) {
-        SDL_FRect dst = {(float)(x - w / 2), (float)(y - h - bob), (float)w, (float)h};
-        SDL_FPoint pivot = {(float)(w / 2), (float)h};
-        SDL_RenderCopyExF(r, cur_tex[which], NULL, &dst, tilt, &pivot, dir < 0 ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
-    }
+    disc(x, y - tall * 0.02, w * 0.42, col(INK, 0.28), col(INK, 0));
+    pic_part(which, x - w / 2, y - h - bob, w, h, 0, 1, tilt, dir < 0);
     if (which == SP_SLEEP)
         for (int q = 0; q < 3; q++) { /* zzz */
             double u = fmod(anim_t * 0.4 + q / 3.0, 1.0), zs = tall * (0.012 + 0.02 * u);
@@ -643,22 +646,24 @@ static void draw_caption(int w, int h, const char *l1, const char *l2)
     double s1 = unit * 0.5, s2 = unit * 0.34;
     double widest = fmax(text_width(l1, s1), text_width(l2, s2)), room = w * 0.86 - unit * 8;
     if (widest > room) { s1 *= room / widest; s2 *= room / widest; } /* long lines are written smaller */
-    double bw = fmax(text_width(l1, s1), text_width(l2, s2)) + unit * 8, bh = unit * 11.5;
-    double bx = w / 2.0 - bw / 2, by = h - (w < h ? w : h) * 0.03 * 1.6 - bh;
-    rect(bx + unit * 0.5, by + unit * 0.6, bw, bh, col(INK, 0.3));
-    rect(bx - unit * 0.22, by - unit * 0.22, bw + unit * 0.44, bh + unit * 0.44, col(INK, 1));
-    rect(bx, by, bw, bh, col(SAND, 1));
-    rect(bx + unit * 0.7, by + unit * 0.7, bw - unit * 1.4, unit * 0.12, col(FAINT, 0.9));
-    rect(bx + unit * 0.7, by + bh - unit * 0.82, bw - unit * 1.4, unit * 0.12, col(FAINT, 0.9));
-    text(l1, w / 2.0, by + unit * 2.2, s1, 0.95, col(INK, 1));
-    text(l2, w / 2.0, by + unit * 7.2, s2, 0.9, col(CHORD, 1));
+    double bw = fmax(text_width(l1, s1), text_width(l2, s2)) + unit * 13, bh = unit * 13;
+    double bx = w / 2.0 - bw / 2, by = h - (w < h ? w : h) * 0.03 * 1.3 - bh;
+    /* the scroll: its rolled ends keep their shape, the middle stretches to fit */
+    double cap = 0.135, cw = bh * 1.15 * sprite[SP_BANNER].w * cap / sprite[SP_BANNER].h;
+    rect(bx + cw * 0.6 + unit * 0.5, by + bh * 0.16 + unit * 0.6, bw - cw * 1.2, bh * 0.72, col(INK, 0.3));
+    pic_part(SP_BANNER, bx + cw - 1, by, bw - 2 * cw + 2, bh, cap, 1 - cap, 0, 0);
+    pic_part(SP_BANNER, bx, by, cw, bh, 0, cap, 0, 0);
+    pic_part(SP_BANNER, bx + bw - cw, by, cw, bh, 1 - cap, 1, 0, 0);
+    text(l1, w / 2.0, by + bh * 0.24, s1, 0.95, col(INK, 1));
+    text(l2, w / 2.0, by + bh * 0.24 + s1 * 6 + unit * 1.4, s2, 0.9, col(CHORD, 1));
 }
 
 static void draw_scene(SDL_Renderer *r, int w, int h)
 {
     double m = (w < h ? w : h) * 0.03;
     unit = (w < h ? w : h) * 0.0125;
-    mx0 = m * 1.2; my0 = m * 1.0; mw = w - m * 2.4; mh = h - m * 2.0 - unit * 11;
+    mx0 = m * 1.2; my0 = m * 1.0; mw = w - m * 2.4; mh = h - m * 2.0 - unit * 12;
+    ren = r;
     SDL_SetRenderDrawColor(r, BG.r, BG.g, BG.b, 255);
     SDL_RenderClear(r);
     double fade = 1;
@@ -739,11 +744,11 @@ static void draw_scene(SDL_Renderer *r, int w, int h)
     /* he dozes beside his math while the machines work, and again when he gets back */
     int awake = (state == ST_WALK && gone < best_len) || (state == ST_SETTLE && st_time > T_SETTLE * 0.5);
     if (state != ST_MAP || st_time > 1.6) {
-        double tall = unit * 10;
-        if (walking) draw_fraa(r, fmod(st_time * 7, 2 * M_PI) < M_PI ? SP_WALK1 : SP_WALK2, fx, fy + unit * 1.0, tall, dir, st_time * 7);
-        else if (!awake) draw_fraa(r, SP_SLEEP, fx + unit * 8.2, fy + unit * 3.0, tall, 1, 0);
-        else if (state == ST_SETTLE) draw_fraa(r, SP_WAKE, fx + unit * 7.0, fy + unit * 3.2, tall, 1, 0);
-        else draw_fraa(r, SP_WALK1, fx + unit * 5.0, fy + unit * 2.8, tall, dir, 0); /* stopped at a math */
+        double tall = unit * 9.5;
+        if (walking) draw_fraa(fmod(st_time * 7, 2 * M_PI) < M_PI ? SP_WALK1 : SP_WALK2, fx, fy + unit * 1.0, tall, dir, st_time * 7);
+        else if (!awake) draw_fraa(SP_SLEEP, fx + unit * 9.4, fy + unit * 3.4, tall, 1, 0);
+        else if (state == ST_SETTLE) draw_fraa(SP_WAKE, fx + unit * 8.6, fy + unit * 3.6, tall, 1, 0);
+        else draw_fraa(SP_WALK1, fx + unit * 5.4, fy + unit * 3.0, tall, dir, 0); /* stopped at a math */
     }
     draw_caption(w, h, l1, l2);
     flush(r);
