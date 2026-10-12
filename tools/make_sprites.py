@@ -48,8 +48,9 @@ def main(src):
     blob = b""
     for n in NAMES:
         a = cut[n]
-        # the two walking frames are made the same height so the toddle does not pump
-        f = WALK_HEIGHT / a.shape[0] if n.startswith("walk") else scale
+        # the two walking frames were drawn at different sizes: bring the second to the
+        # height of the first, plus a little because he rises on the lifted-knee step
+        f = WALK_HEIGHT * 1.04 / a.shape[0] if n == "walk2" else scale
         w, h = max(1, round(a.shape[1] * f)), max(1, round(a.shape[0] * f))
         s = resize(a, w, h)
         subprocess.run(["magick", "-size", f"{w}x{h}", "-depth", "8", "RGBA:-", f"assets/fraa-{n}.png"], input=s.tobytes(), check=True)
