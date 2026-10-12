@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=The Lazy Peregrin
+Comment=Watch the Lazy Peregrin problem from Anathem being solved
+Exec=lazy-peregrin --window
+Icon=teglon
+Categories=Game;LogicGame;Education;Math;
+Keywords=Anathem;travelling salesman;screensaver;

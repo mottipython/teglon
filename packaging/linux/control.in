@@ -7,12 +7,13 @@ Depends: libc6 (>= 2.35), libsdl2-2.0-0 (>= 2.0.18)
 Recommends: swayidle
 Installed-Size: @SIZE@
 Maintainer: Motti Schleider <motti.schleider@gmail.com>
-Description: Solver and screensaver for the Teglon from "Anathem"
+Description: Screensavers from "Anathem": the Teglon and the Lazy Peregrin
  The Teglon is the tiling problem in Neal Stephenson's novel Anathem: pave a
  regular decagon with tiles of seven shapes so that the grooves on the tiles
  join into one unbroken curve from one vertex to the opposite vertex, crossing
  every tile.
  .
  teglon is a screensaver that solves it again and again, laying each solution
- over the last. teglon-solve is the command line solver. teglon-screensaver
+ over the last. lazy-peregrin is a second screensaver for the Lazy Peregrin
+ problem, Arbre's travelling salesman. teglon-solve is the command line solver. teglon-screensaver
  switches the screensaver on and off for your desktop session.
