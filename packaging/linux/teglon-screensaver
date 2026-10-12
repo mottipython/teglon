@@ -1,42 +1,32 @@
 #!/bin/sh
-# Switch the Anathem screensavers on or off for this desktop session.
+# Switch the Teglon screensaver on or off for this desktop session.
 #
 # Wayland desktops have no screensaver service to plug into, so this starts a small
-# idle watcher (swayidle) at login that runs a screensaver once the session has been
-# idle for the given time. Any key or mouse movement ends it.
+# idle watcher (swayidle) at login that runs teglon once the session has been idle
+# for the given time. Any key or mouse movement ends it.
 # Works on compositors with the ext-idle-notify protocol: KDE Plasma, Sway,
 # Hyprland, niri, COSMIC, labwc, river and others. GNOME does not provide it.
 
 set -e
 AUTOSTART="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/teglon-screensaver.desktop"
-PATTERN='^swayidle .*timeout [0-9]+ (teglon|lazy-peregrin|teglon-screensaver now)'
 
 usage() {
-    echo "usage: teglon-screensaver enable [MINUTES] [teglon|peregrin|both]"
-    echo "                                  start after MINUTES idle (default 5);"
-    echo "                                  'both' picks one of the two at random each time"
+    echo "usage: teglon-screensaver enable [MINUTES]   start after MINUTES idle (default 5)"
     echo "       teglon-screensaver disable"
     echo "       teglon-screensaver status"
-    echo "       teglon-screensaver now [teglon|peregrin|both]   run one right away"
+    echo "       teglon-screensaver now                run it right away"
     exit 1
 }
 
 stop_watcher() {
-    pkill -u "$(id -u)" -f "$PATTERN" 2>/dev/null || true
+    pkill -u "$(id -u)" -f '^swayidle .*timeout [0-9]+ teglon$' 2>/dev/null || true
 }
 
 case "${1:-}" in
 enable)
     minutes="${2:-5}"
-    which="${3:-teglon}"
     case "$minutes" in ''|*[!0-9]*) usage ;; esac
     [ "$minutes" -ge 1 ] || usage
-    case "$which" in
-        teglon) run="teglon" ;;
-        peregrin) run="lazy-peregrin" ;;
-        both) run="teglon-screensaver now both" ;;
-        *) usage ;;
-    esac
     if ! command -v swayidle >/dev/null 2>&1; then
         echo "swayidle is not installed. Install it first (dnf install swayidle / apt install swayidle)." >&2
         exit 1
@@ -50,36 +40,31 @@ enable)
     cat > "$AUTOSTART" <<EOF
 [Desktop Entry]
 Type=Application
-Name=Anathem screensaver
-Comment=Run $which after $minutes minutes idle
-Exec=swayidle -w timeout $seconds "$run"
+Name=Teglon screensaver
+Comment=Run the Teglon screensaver after $minutes minutes idle
+Exec=swayidle -w timeout $seconds teglon
 X-GNOME-Autostart-enabled=true
 NoDisplay=true
 EOF
     stop_watcher
-    setsid swayidle -w timeout "$seconds" "$run" >/dev/null 2>&1 &
-    echo "Screensaver enabled ($which): starts after $minutes minutes idle, now and at every login."
+    setsid swayidle -w timeout "$seconds" teglon >/dev/null 2>&1 &
+    echo "Teglon screensaver enabled: starts after $minutes minutes idle, now and at every login."
     ;;
 disable)
     rm -f "$AUTOSTART"
     stop_watcher
-    echo "Screensaver disabled."
+    echo "Teglon screensaver disabled."
     ;;
 status)
     if [ -f "$AUTOSTART" ]; then
         grep '^Comment=' "$AUTOSTART" | cut -d= -f2-
-        if pgrep -u "$(id -u)" -f "$PATTERN" >/dev/null 2>&1; then echo "Idle watcher is running."; else echo "Idle watcher is not running (it starts at login)."; fi
+        if pgrep -u "$(id -u)" -f '^swayidle .*timeout [0-9]+ teglon$' >/dev/null 2>&1; then echo "Idle watcher is running."; else echo "Idle watcher is not running (it starts at login)."; fi
     else
-        echo "Screensaver is disabled."
+        echo "Teglon screensaver is disabled."
     fi
     ;;
 now)
-    case "${2:-teglon}" in
-        teglon) exec teglon ;;
-        peregrin) exec lazy-peregrin ;;
-        both) if [ $(( $(date +%s) % 2 )) -eq 0 ]; then exec teglon; else exec lazy-peregrin; fi ;;
-        *) usage ;;
-    esac
+    exec teglon
     ;;
 *)
     usage

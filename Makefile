@@ -1,5 +1,5 @@
 # Teglon - solver and screensaver for the tiling problem in Neal Stephenson's "Anathem"
-VERSION  := 1.1.0
+VERSION  := 1.2.0
 PREFIX   ?= /usr
 DESTDIR  ?=
 CC       ?= cc
@@ -13,7 +13,7 @@ SDL_LIBS   := $(shell pkg-config --libs sdl2 2>/dev/null)
 MINGW    ?= x86_64-w64-mingw32
 MINGW_ROOT ?= /usr/$(MINGW)/sys-root/mingw
 
-all: build/teglon build/lazy-peregrin build/teglon-solve
+all: build/teglon build/teglon-solve
 
 build/teglon-solve: src/cli.c src/teglon.c src/teglon.h
 	@mkdir -p build
@@ -23,28 +23,21 @@ build/teglon: src/saver.c src/teglon.c src/teglon.h
 	@mkdir -p build
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(SDL_CFLAGS) -o $@ src/saver.c src/teglon.c $(LDFLAGS) $(SDL_LIBS) -lm
 
-build/lazy-peregrin: src/peregrin.c src/stb_image.h $(wildcard assets/art/*)
-	@mkdir -p build
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(SDL_CFLAGS) -Isrc -o $@ src/peregrin.c $(LDFLAGS) $(SDL_LIBS) -lm
-
 check: build/teglon-solve
 	@for n in 1 2 3 4 5 6 8 12 16 24 40; do ./build/teglon-solve -n $$n -s $$n -q > /dev/null || exit 1; ./build/teglon-solve -n $$n -s $$n -x 5 -q > /dev/null || exit 1; done; echo "all sizes solved and verified"
 	@./build/teglon-solve -n 2 -x 5 -g 01,12,01,xx,25,xx,05,xx -q > /dev/null && echo "strict side 2 solved and verified"
 
 install: all
 	install -Dm755 build/teglon $(DESTDIR)$(PREFIX)/bin/teglon
-	install -Dm755 build/lazy-peregrin $(DESTDIR)$(PREFIX)/bin/lazy-peregrin
 	install -Dm755 build/teglon-solve $(DESTDIR)$(PREFIX)/bin/teglon-solve
 	install -Dm755 packaging/linux/teglon-screensaver $(DESTDIR)$(PREFIX)/bin/teglon-screensaver
 	install -Dm644 packaging/linux/teglon.desktop $(DESTDIR)$(PREFIX)/share/applications/teglon.desktop
-	install -Dm644 packaging/linux/lazy-peregrin.desktop $(DESTDIR)$(PREFIX)/share/applications/lazy-peregrin.desktop
 	install -Dm644 packaging/teglon.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/teglon.svg
 	install -Dm644 README.md $(DESTDIR)$(PREFIX)/share/doc/teglon/README.md
 	install -Dm644 LICENSE $(DESTDIR)$(PREFIX)/share/doc/teglon/LICENSE
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/teglon $(DESTDIR)$(PREFIX)/bin/lazy-peregrin $(DESTDIR)$(PREFIX)/bin/teglon-solve $(DESTDIR)$(PREFIX)/bin/teglon-screensaver
-	rm -f $(DESTDIR)$(PREFIX)/share/applications/lazy-peregrin.desktop
+	rm -f $(DESTDIR)$(PREFIX)/bin/teglon $(DESTDIR)$(PREFIX)/bin/teglon-solve $(DESTDIR)$(PREFIX)/bin/teglon-screensaver
 	rm -f $(DESTDIR)$(PREFIX)/share/applications/teglon.desktop $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/teglon.svg
 	rm -rf $(DESTDIR)$(PREFIX)/share/doc/teglon
 
@@ -54,7 +47,7 @@ ARCH_DEB := $(shell dpkg --print-architecture 2>/dev/null || echo amd64)
 deb: all
 	rm -rf build/deb && mkdir -p build/deb/DEBIAN dist
 	$(MAKE) install DESTDIR=build/deb PREFIX=/usr
-	strip build/deb/usr/bin/teglon build/deb/usr/bin/lazy-peregrin build/deb/usr/bin/teglon-solve
+	strip build/deb/usr/bin/teglon build/deb/usr/bin/teglon-solve
 	sed -e 's/@VERSION@/$(VERSION)/' -e 's/@ARCH@/$(ARCH_DEB)/' \
 	    -e "s/@SIZE@/$$(du -sk build/deb/usr | cut -f1)/" packaging/linux/control.in > build/deb/DEBIAN/control
 	dpkg-deb --root-owner-group --build build/deb dist/teglon_$(VERSION)_$(ARCH_DEB).deb
@@ -71,10 +64,7 @@ windows:
 	$(MINGW)-gcc -O2 -std=gnu11 -Wall -Wno-trigraphs -I$(MINGW_ROOT)/include/SDL2 -Dmain=SDL_main \
 	    -o build/win/Teglon.scr src/saver.c src/teglon.c \
 	    -L$(MINGW_ROOT)/lib -lmingw32 -lSDL2main -lSDL2 -lm -mwindows -static-libgcc
-	$(MINGW)-gcc -O2 -std=gnu11 -Wall -I$(MINGW_ROOT)/include/SDL2 -Dmain=SDL_main \
-	    -Isrc -o build/win/LazyPeregrin.scr src/peregrin.c \
-	    -L$(MINGW_ROOT)/lib -lmingw32 -lSDL2main -lSDL2 -lm -mwindows -static-libgcc
-	$(MINGW)-strip build/win/Teglon.scr build/win/LazyPeregrin.scr build/win/teglon-solve.exe
+	$(MINGW)-strip build/win/Teglon.scr build/win/teglon-solve.exe
 	cp $(MINGW_ROOT)/bin/SDL2.dll build/win/
 	[ ! -f $(MINGW_ROOT)/bin/SDL3.dll ] || cp $(MINGW_ROOT)/bin/SDL3.dll build/win/
 

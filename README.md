@@ -1,11 +1,10 @@
-# Teglon and the Lazy Peregrin
+# Teglon
 
-Two screensavers from Neal Stephenson's novel *Anathem*, and a solver. Linux and
-Windows.
+A screensaver and solver for the Teglon, the tiling problem in Neal Stephenson's
+novel *Anathem*. Runs on Linux and Windows.
 
-- **Teglon**: the tiling problem played on the Decagon at Orithena.
-- **The Lazy Peregrin**: Arbre's travelling salesman problem, with a fraa who would
-  rather be asleep. [Jump to it](#the-lazy-peregrin).
+Its companion, [the Lazy Peregrin](https://github.com/mottipython/lazy-peregrin), is a
+second *Anathem* screensaver with its own installers.
 
 ![A Decagon half paved, the pattern growing outward from the first vertex](docs/laying.png)
 
@@ -53,41 +52,6 @@ tiles, so that scale is a guess; `--side` changes it.
     teglon --strict         the strict game (see below)
     teglon --snapshot out.bmp --time 60 --size 1920x1080
 
-## The Lazy Peregrin
-
-![The fraa on his way round the maths](docs/screenshots/peregrin-5-on-the-road.png)
-
-In the book the Lazy Peregrin is the problem of a wandering fraa who must call at a
-number of maths and wants to walk as little as possible. A syntactic device has to
-try the routes one after another; Saunt Grod's Machines hold every route at once.
-
-Each round is a new island with ten to fifteen maths on it:
-
-1. The fraa is asleep beside his own math, his head on his sphere.
-2. A syntactic device tries routes one by one, keeping the best so far. The counter
-   shows how many there are to get through.
-3. Saunt Grod's Machine holds them all at once, and settles on the shortest.
-4. The fraa wakes, picks up his sphere and toddles round. The bells ring him in at
-   each math and a pennant goes up. Then he goes home and back to sleep.
-
-| | |
-|---|---|
-| ![](docs/screenshots/peregrin-2-syntactic-device.png) | ![](docs/screenshots/peregrin-3-grods-machine.png) |
-| The syntactic device at work | Saunt Grod's Machine |
-| ![](docs/screenshots/peregrin-4-waking.png) | ![](docs/screenshots/peregrin-6-home-again.png) |
-| The shortest route found, and a fraa woken | Home again |
-
-The route he walks really is the shortest. With this few maths an ordinary computer
-can find it exactly (the Held-Karp method) in a fraction of a second, and that is
-done before each round starts. The picture of Saunt Grod's Machine is a crowd of
-160 routes being annealed together, each leg drawn as dark as the share of the
-crowd using it. It is a picture of the idea, not quantum computing.
-
-    lazy-peregrin              full screen on every display; any key or mouse movement quits
-    lazy-peregrin --window     in a window; Esc or Q quits
-    lazy-peregrin --maths 12   how many maths (6 to 18)
-    lazy-peregrin --speed 2    faster
-
 ## Gallery
 
 One show from start to finish: four solutions, each laid over the last.
@@ -113,17 +77,15 @@ Packages are on the [releases page](../../releases).
 
 **Fedora, Nobara** (built on Fedora 44):
 
-    sudo dnf install ./teglon-1.1.0-1.fc44.x86_64.rpm
+    sudo dnf install ./teglon-1.2.0-1.fc44.x86_64.rpm
 
 **Debian, Ubuntu, Mint** (needs glibc 2.35 or newer, i.e. Ubuntu 22.04 / Debian 12 or later):
 
-    sudo apt install ./teglon_1.1.0_amd64.deb
+    sudo apt install ./teglon_1.2.0_amd64.deb
 
 Then turn it on for your session:
 
-    teglon-screensaver enable 5             # Teglon after 5 minutes idle
-    teglon-screensaver enable 5 peregrin    # the Lazy Peregrin instead
-    teglon-screensaver enable 5 both        # one or the other, at random
+    teglon-screensaver enable 5     # start after 5 minutes idle
     teglon-screensaver disable
     teglon-screensaver status
 
@@ -132,10 +94,9 @@ run `teglon` when the session goes idle. It works on compositors that provide th
 ext-idle-notify protocol: KDE Plasma, Sway, Hyprland, niri, COSMIC, labwc and
 others. GNOME does not provide it. It does not lock the screen.
 
-**Windows:** run `Teglon-Setup-1.1.0.exe`. It installs for the current user without
+**Windows:** run `Teglon-Setup-1.2.0.exe`. It installs for the current user without
 administrator rights, makes Teglon the current screensaver, and offers to open
-Screen Saver Settings. The Start menu has shortcuts to switch between Teglon and
-the Lazy Peregrin. Uninstall from Apps or the Start menu. The Windows build is
+Screen Saver Settings. Uninstall from Apps or the Start menu. The Windows build is
 cross-compiled and has not been tested on a real Windows machine yet.
 
 ## The tiles
@@ -228,12 +189,7 @@ Packages are written to `dist/`:
     make rpm        # needs rpmbuild; packs the current git commit
     make installer  # Windows installer; needs mingw-w64, SDL2 for mingw and NSIS
 
-## Credits and licence
+## Licence
 
-MIT. *Anathem*, the Teglon and the Lazy Peregrin are Neal Stephenson's; this is an
-unofficial fan project.
-
-The pictures in the Lazy Peregrin (the fraa, the maths, trees, mountains, compass,
-scroll, sea and parchment) were drawn with Google Gemini and prepared by
-`tools/make_sprites.py`. Images are decoded with
-[stb_image](https://github.com/nothings/stb) (public domain).
+MIT. *Anathem* and the Teglon are Neal Stephenson's; this is an unofficial fan
+project.

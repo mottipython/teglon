@@ -3,7 +3,7 @@
 !include "FileFunc.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.1.0"
+  !define VERSION "1.2.0"
 !endif
 
 Name "Teglon ${VERSION}"
@@ -37,7 +37,6 @@ Section "Teglon" SecMain
   SectionIn RO
   SetOutPath "$INSTDIR"
   File "..\..\build\win\Teglon.scr"
-  File "..\..\build\win\LazyPeregrin.scr"
   File "..\..\build\win\teglon-solve.exe"
   File "..\..\build\win\*.dll"
   File /oname=README.txt "..\..\README.md"
@@ -56,10 +55,6 @@ Section "Teglon" SecMain
   CreateDirectory "$SMPROGRAMS\Teglon"
   CreateShortcut "$SMPROGRAMS\Teglon\Teglon (window).lnk" "$INSTDIR\Teglon.scr" "--window"
   CreateShortcut "$SMPROGRAMS\Teglon\Teglon screensaver.lnk" "$INSTDIR\Teglon.scr" "/s"
-  CreateShortcut "$SMPROGRAMS\Teglon\Lazy Peregrin (window).lnk" "$INSTDIR\LazyPeregrin.scr" "--window"
-  GetFullPathName /SHORT $5 "$INSTDIR\LazyPeregrin.scr"
-  CreateShortcut "$SMPROGRAMS\Teglon\Use Lazy Peregrin as screensaver.lnk" "$SYSDIR\rundll32.exe" "desk.cpl,InstallScreenSaver $5"
-  CreateShortcut "$SMPROGRAMS\Teglon\Use Teglon as screensaver.lnk" "$SYSDIR\rundll32.exe" "desk.cpl,InstallScreenSaver $0"
   CreateShortcut "$SMPROGRAMS\Teglon\Uninstall Teglon.lnk" "$INSTDIR\Uninstall.exe"
 
   !define UNKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Teglon"
@@ -80,13 +75,8 @@ Section "Uninstall"
   ReadRegStr $1 HKCU "Control Panel\Desktop" "SCRNSAVE.EXE"
   StrCmp $1 $0 0 +2
     DeleteRegValue HKCU "Control Panel\Desktop" "SCRNSAVE.EXE"
-  GetFullPathName /SHORT $0 "$INSTDIR\LazyPeregrin.scr"
-  ReadRegStr $1 HKCU "Control Panel\Desktop" "SCRNSAVE.EXE"
-  StrCmp $1 $0 0 +2
-    DeleteRegValue HKCU "Control Panel\Desktop" "SCRNSAVE.EXE"
 
   Delete "$INSTDIR\Teglon.scr"
-  Delete "$INSTDIR\LazyPeregrin.scr"
   Delete "$INSTDIR\teglon-solve.exe"
   Delete "$INSTDIR\SDL2.dll"
   Delete "$INSTDIR\SDL3.dll"
@@ -95,9 +85,6 @@ Section "Uninstall"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
   Delete "$SMPROGRAMS\Teglon\Teglon (window).lnk"
-  Delete "$SMPROGRAMS\Teglon\Lazy Peregrin (window).lnk"
-  Delete "$SMPROGRAMS\Teglon\Use Lazy Peregrin as screensaver.lnk"
-  Delete "$SMPROGRAMS\Teglon\Use Teglon as screensaver.lnk"
   Delete "$SMPROGRAMS\Teglon\Teglon screensaver.lnk"
   Delete "$SMPROGRAMS\Teglon\Uninstall Teglon.lnk"
   RMDir "$SMPROGRAMS\Teglon"
