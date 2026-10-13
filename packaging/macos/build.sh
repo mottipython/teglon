@@ -2,7 +2,8 @@
 # Build the macOS app, for both Apple Silicon and Intel, with SDL2 linked in so that
 # nothing else has to be installed. Run on a Mac from the top of the source tree:
 #   packaging/macos/build.sh NAME "TITLE" SOURCE.c...
-# It writes dist/TITLE-VERSION-mac.zip, and a test picture in build/mac/.
+# It writes dist/TITLE-VERSION-mac.zip (the app) and dist/TITLE-VERSION-mac-screensaver.zip
+# (the screen saver module), and test pictures in build/mac/.
 set -e
 name=$1; title=$2; shift 2
 version=$(sed -n 's/^VERSION *:= *//p' Makefile)
@@ -42,6 +43,23 @@ lipo -archs "$app/Contents/MacOS/$name"
 
 # prove that it runs here: draw a frame without a screen and keep the picture
 SDL_VIDEODRIVER=dummy "$app/Contents/MacOS/$name" --snapshot "$root/test.bmp" --time 5 --size 1280x720
+
+# The screen saver module, where there is a wrapper for it: the same program built as
+# a bundle that macOS loads. It is tried here by loading it and letting it draw.
+if [ -f packaging/macos/saver.m ] && grep -q "^static void draw_scene" "$1"; then
+    class="$(echo "$title" | tr -cd 'A-Za-z')SaverView"
+    saver="$root/$title.saver"
+    rm -rf "$saver"; mkdir -p "$saver/Contents/MacOS" "$saver/Contents/Resources"
+    cc -bundle -fobjc-arc -O2 -std=gnu11 -Wall -Wno-unused-function -I. -Isrc -arch arm64 -arch x86_64 $("$root/sdl/bin/sdl2-config" --cflags) \
+       -DSAVER_SOURCE="\"$1\"" -DSAVER_CLASS="$class" -o "$saver/Contents/MacOS/$name" packaging/macos/saver.m \
+       $("$root/sdl/bin/sdl2-config" --static-libs) -framework ScreenSaver -framework Cocoa
+    sed -e "s/@NAME@/$name/g" -e "s/@TITLE@/$title/g" -e "s/@VERSION@/$version/g" -e "s/@CLASS@/$class/g" \
+        packaging/macos/Saver-Info.plist.in > "$saver/Contents/Info.plist"
+    codesign --force --deep -s - "$saver"
+    cc -fobjc-arc -O1 -o "$root/test-saver" packaging/macos/test-saver.m -framework Cocoa -framework ScreenSaver
+    "$root/test-saver" "$saver" "$root/test-saver.png"
+    ditto -c -k --keepParent "$saver" "dist/$(echo "$title" | tr ' ' '-')-$version-mac-screensaver.zip"
+fi
 
 ditto -c -k --keepParent "$app" "dist/$(echo "$title" | tr ' ' '-')-$version-mac.zip"
 ls -l dist/*-mac.zip

@@ -20,11 +20,12 @@ jobs:
         with:
           name: mac
           path: |
-            dist/*-mac.zip
+            dist/*-mac*.zip
             build/mac/test.bmp
+            build/mac/test-saver.png
       - name: Attach to the release
         if: github.event_name == 'release' || inputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: gh release upload "$TAG" dist/*-mac.zip --clobber
+        run: gh release upload "$TAG" dist/*-mac*.zip --clobber
