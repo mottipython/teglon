@@ -115,8 +115,10 @@ Privacy & Security, and click Open Anyway. (The command above avoids that step.)
 The file ending `-mac.zip` is the same thing as an ordinary app that runs full
 screen until you press a key.
 
-Tried on macOS 15 on Intel, where it installs, previews and runs. Not yet tried on
-Apple Silicon; reports are welcome.
+**Tested on** macOS 15 (Intel), Windows 11 and Fedora-based Linux (Nobara 44, KDE
+Plasma on Wayland): it installs, shows up as a screen saver and runs on all three.
+The `.deb` is installed and run by an automated test on Ubuntu 24.04, Ubuntu 25.04,
+Debian 13 and Mint 22. Apple Silicon has not been tried yet; reports are welcome.
 
 ## The tiles
 
