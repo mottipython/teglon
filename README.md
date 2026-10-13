@@ -98,18 +98,25 @@ others. GNOME does not provide it. It does not lock the screen.
 administrator rights, makes Teglon the current screensaver, and offers to open
 Screen Saver Settings. Uninstall from Apps or the Start menu. Tried on Windows 11.
 
-**macOS** (Apple Silicon and Intel, macOS 11 or later): two downloads on the
-releases page. The screen saver is the file ending `-mac-screensaver.zip`: unzip
-it, double-click the `.saver` file, let macOS install it, and choose it in System
-Settings, Screen Saver. The file ending `-mac.zip` is the same thing as an ordinary
-app that runs full screen until you press a key.
+**macOS** (Apple Silicon and Intel, macOS 11 or later). The quick way is to paste this into
+Terminal. It installs the screen saver for your user and opens the Screen Saver
+settings, where it is at the end of the list:
 
-Neither is signed with an Apple developer certificate, so macOS refuses them at
-first: after the refusal, open System Settings, Privacy & Security, and click Open
-Anyway. If the screen saver still will not load, clear the quarantine mark in
-Terminal with `xattr -dr com.apple.quarantine ~/Library/"Screen Savers"`. Both are
-built on a Mac build machine, where the screen saver is loaded and made to draw as
-a test; they have not yet been tried by a person on a real Mac.
+    curl -fsSL https://raw.githubusercontent.com/mottipython/anathem-screensavers/main/tools/mac-install.sh | sh -s -- teglon
+
+Leave off `-s -- teglon` to install all the
+[Anathem screensavers](https://github.com/mottipython/anathem-screensavers) at once,
+or put `--uninstall` in its place to take them off again.
+
+To do it by hand, download the file ending `-mac-screensaver.zip` from the releases
+page, unzip it and double-click the `.saver` file. It is not signed with an Apple
+developer certificate, so macOS will refuse it at first: open System Settings,
+Privacy & Security, and click Open Anyway. (The command above avoids that step.)
+The file ending `-mac.zip` is the same thing as an ordinary app that runs full
+screen until you press a key.
+
+Tried on macOS 15 on Intel, where it installs, previews and runs. Not yet tried on
+Apple Silicon; reports are welcome.
 
 ## The tiles
 
