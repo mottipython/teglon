@@ -11,11 +11,25 @@
  * screensaver must have a class name of its own, because they may be loaded into the
  * same process.
  */
+/* The system's headers first, and SDL's and C's, so that nothing in the screensaver's
+ * source can disturb them. Then the few names that the old Mac headers already use
+ * (they are a style, a style and a 64-bit number there) are given to the
+ * screensaver under other names. */
+#import <ScreenSaver/ScreenSaver.h>
+#include <SDL.h>
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#define outline saver_outline
+#define shadow saver_shadow
+#define wide saver_wide
 #define main app_main_not_used
 #include SAVER_SOURCE
 #undef main
-
-#import <ScreenSaver/ScreenSaver.h>
 
 #define MAX_HEIGHT 900 /* drawn no larger than this and scaled up, to keep the frame rate */
 
