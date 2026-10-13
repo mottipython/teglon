@@ -1,0 +1,30 @@
+name: macOS build
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Attach the app to this release (leave empty to only build)
+        required: false
+  release:
+    types: [published]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the app
+        run: packaging/macos/build.sh teglon "Teglon" src/saver.c src/teglon.c
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: |
+            dist/*-mac.zip
+            build/mac/test.bmp
+      - name: Attach to the release
+        if: github.event_name == 'release' || inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$TAG" dist/*-mac.zip --clobber
