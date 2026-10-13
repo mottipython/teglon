@@ -1,20 +1,15 @@
 /*
- * The screensaver as a macOS screen saver module (a .saver bundle), the kind that is
- * installed and then chosen in System Settings.
+ * Teglon as a macOS screen saver module (a .saver bundle), the kind that is installed
+ * and then chosen in System Settings.
  *
  * macOS loads the module and asks it to draw into a view of its own, so there is no
  * window to open and no main loop to run. The screensaver's own source is compiled
  * in whole, below; each frame it draws with SDL's software renderer into a block of
  * memory, and that picture is handed to macOS.
- *
- * Compiled with -DSAVER_SOURCE='"src/....c"' and -DSAVER_CLASS=SomethingView. Every
- * screensaver must have a class name of its own, because they may be loaded into the
- * same process.
  */
 /* The system's headers first, and SDL's and C's, so that nothing in the screensaver's
- * source can disturb them. Then the few names that the old Mac headers already use
- * (they are a style, a style and a 64-bit number there) are given to the
- * screensaver under other names. */
+ * source can disturb them; then the names the old Mac headers already use are given
+ * to the screensaver under other names. */
 #import <ScreenSaver/ScreenSaver.h>
 #include <SDL.h>
 #include <math.h>
@@ -28,29 +23,29 @@
 #define shadow saver_shadow
 #define wide saver_wide
 #define main app_main_not_used
-#include SAVER_SOURCE
+#include "src/saver.c"
 #undef main
 
 #define MAX_HEIGHT 900 /* drawn no larger than this and scaled up, to keep the frame rate */
 
 static int started;       /* the show is shared by every view: one per screen, and the preview */
 static double last_step;
+static int due_for;       /* frames since the layer was finished; every view draws it before the next begins */
 
-@interface SAVER_CLASS : ScreenSaverView {
+@interface TeglonSaverView : ScreenSaverView {
     SDL_Surface *canvas;
-    SDL_Renderer *painter;
-    SDL_Texture *pictures[NSPRITE];
+    View view;
 }
 @end
 
-@implementation SAVER_CLASS
+@implementation TeglonSaverView
 
 - (instancetype)initWithFrame:(NSRect)frame isPreview:(BOOL)isPreview
 {
     self = [super initWithFrame:frame isPreview:isPreview];
     if (!self) return nil;
     [self setAnimationTimeInterval:1.0 / 30.0];
-    if (!started) { started = 1; load_sprites(); start_show(); }
+    if (!started) { started = 1; start_show(); }
     /* Since macOS 14 the system does not stop a screen saver's process when the screen
      * saver ends, and it goes on running unseen. It says when it is stopping; leave then. */
     if (!isPreview)
@@ -67,10 +62,8 @@ static double last_step;
 
 - (void)dropCanvas
 {
-    if (painter) {
-        for (int i = 0; i < NSPRITE; i++) if (pictures[i]) { SDL_DestroyTexture(pictures[i]); pictures[i] = NULL; }
-        SDL_DestroyRenderer(painter); painter = NULL;
-    }
+    if (view.ren) SDL_DestroyRenderer(view.ren); /* its textures go with it */
+    memset(&view, 0, sizeof view);
     if (canvas) { SDL_FreeSurface(canvas); canvas = NULL; }
 }
 
@@ -79,10 +72,9 @@ static double last_step;
     if (canvas && canvas->w == w && canvas->h == h) return YES;
     [self dropCanvas];
     canvas = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ARGB8888);
-    painter = canvas ? SDL_CreateSoftwareRenderer(canvas) : NULL;
-    if (!painter) { [self dropCanvas]; return NO; }
-    SDL_SetRenderDrawBlendMode(painter, SDL_BLENDMODE_BLEND);
-    make_textures(painter, pictures);
+    view.ren = canvas ? SDL_CreateSoftwareRenderer(canvas) : NULL;
+    if (!view.ren) { [self dropCanvas]; return NO; }
+    SDL_SetRenderDrawBlendMode(view.ren, SDL_BLENDMODE_BLEND);
     return YES;
 }
 
@@ -93,6 +85,13 @@ static double last_step;
     double dt = now - last_step;
     if (dt > 0.004) { /* once a frame, however many views there are */
         last_step = now;
+        if (next_layer_due()) {
+            if (++due_for >= 3) { /* solving the next one takes a moment; do not count it as time passed */
+                due_for = 0;
+                next_layer();
+                last_step = [NSDate timeIntervalSinceReferenceDate];
+            }
+        } else due_for = 0;
         update(dt > 0.1 ? 0.1 : dt);
     }
     [self setNeedsDisplay:YES];
@@ -105,9 +104,8 @@ static double last_step;
     double shrink = px.size.height > MAX_HEIGHT ? MAX_HEIGHT / px.size.height : 1;
     int w = (int)(px.size.width * shrink), h = (int)(px.size.height * shrink);
     if (w < 16 || h < 16 || ![self canvasOfWidth:w height:h]) return;
-    cur_tex = pictures;
-    draw_scene(painter, w, h);
-    SDL_RenderPresent(painter);
+    size_view(&view);
+    render(&view);
 
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
     CGContextRef bitmap = CGBitmapContextCreate(canvas->pixels, w, h, 8, canvas->pitch, space,

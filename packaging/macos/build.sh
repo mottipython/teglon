@@ -46,12 +46,13 @@ SDL_VIDEODRIVER=dummy "$app/Contents/MacOS/$name" --snapshot "$root/test.bmp" --
 
 # The screen saver module, where there is a wrapper for it: the same program built as
 # a bundle that macOS loads. It is tried here by loading it and letting it draw.
-if [ -f packaging/macos/saver.m ] && grep -q "^static void draw_scene" "$1"; then
+if [ -f packaging/macos/saver.m ]; then
     class="$(echo "$title" | tr -cd 'A-Za-z')SaverView"
     saver="$root/$title.saver"
+    first=$1; shift   # the first source is compiled inside the wrapper; any others beside it
     rm -rf "$saver"; mkdir -p "$saver/Contents/MacOS" "$saver/Contents/Resources"
     cc -bundle -fobjc-arc -O2 -std=gnu11 -Wall -Wno-unused-function -I. -Isrc -arch arm64 -arch x86_64 $("$root/sdl/bin/sdl2-config" --cflags) \
-       -DSAVER_SOURCE="\"$1\"" -DSAVER_CLASS="$class" -o "$saver/Contents/MacOS/$name" packaging/macos/saver.m \
+       -DSAVER_SOURCE="\"$first\"" -DSAVER_CLASS="$class" -o "$saver/Contents/MacOS/$name" packaging/macos/saver.m "$@" \
        $("$root/sdl/bin/sdl2-config" --static-libs) -framework ScreenSaver -framework Cocoa
     sed -e "s/@NAME@/$name/g" -e "s/@TITLE@/$title/g" -e "s/@VERSION@/$version/g" -e "s/@CLASS@/$class/g" \
         packaging/macos/Saver-Info.plist.in > "$saver/Contents/Info.plist"

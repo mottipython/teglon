@@ -96,15 +96,20 @@ others. GNOME does not provide it. It does not lock the screen.
 
 **Windows:** run `Teglon-Setup-1.2.0.exe`. It installs for the current user without
 administrator rights, makes Teglon the current screensaver, and offers to open
-Screen Saver Settings. Uninstall from Apps or the Start menu. The Windows build is
-cross-compiled and has not been tested on a real Windows machine yet.
+Screen Saver Settings. Uninstall from Apps or the Start menu. Tried on Windows 11.
 
-**macOS:** download `Teglon-…-mac.zip` from the releases page, unzip it, and open the
-app. It runs full screen and any key ends it. It is an app and not yet a screen
-saver module, so it does not appear in the Screen Saver settings. It is not signed
-with an Apple developer certificate, so the first time macOS will refuse to open
-it: allow it under System Settings, Privacy & Security. Built and run on a build
-machine, not yet tried by a person on a real Mac.
+**macOS** (Apple Silicon and Intel, macOS 11 or later): two downloads on the
+releases page. The screen saver is the file ending `-mac-screensaver.zip`: unzip
+it, double-click the `.saver` file, let macOS install it, and choose it in System
+Settings, Screen Saver. The file ending `-mac.zip` is the same thing as an ordinary
+app that runs full screen until you press a key.
+
+Neither is signed with an Apple developer certificate, so macOS refuses them at
+first: after the refusal, open System Settings, Privacy & Security, and click Open
+Anyway. If the screen saver still will not load, clear the quarantine mark in
+Terminal with `xattr -dr com.apple.quarantine ~/Library/"Screen Savers"`. Both are
+built on a Mac build machine, where the screen saver is loaded and made to draw as
+a test; they have not yet been tried by a person on a real Mac.
 
 ## The tiles
 
