@@ -4,7 +4,7 @@ A screensaver and solver for the Teglon, the tiling problem in Neal Stephenson's
 novel *Anathem*. Runs on Linux, Windows and macOS.
 
 Its companion, [the Lazy Peregrin](https://github.com/mottipython/lazy-peregrin), is a
-second *Anathem* screensaver with its own installers.
+second *Anathem* screensaver with its own installers. One of the [Anathem screensavers](https://github.com/mottipython/anathem-screensavers).
 
 ![A Decagon half paved, the pattern growing outward from the first vertex](docs/laying.png)
 
