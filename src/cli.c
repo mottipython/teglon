@@ -40,12 +40,6 @@ static const char *FILL[TG_NS] = {"#d9a066", "#c97b4a", "#e8c07d", "#b5673c", "#
 static void write_svg(const char *path, const int *order, const int *in, const int *out, int n)
 {
     if (!path) return;
-    for (const char *c = path; *c; c++) {
-        if (*c == '/' || *c == '\\' || *c == ':') {
-            fprintf(stderr, "error: svg filename must not contain directory separators\n");
-            return;
-        }
-    }
     FILE *f = fopen(path, "w");
     if (!f) { perror(path); return; }
     double minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
@@ -99,22 +93,9 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "-p")) pent = atof(argv[++i]);
         else if (!strcmp(argv[i], "-t")) tg_bowtie = atof(argv[++i]);
         else if (!strcmp(argv[i], "-s")) seed = strtoull(argv[++i], 0, 10);
-        else if (!strcmp(argv[i], "-b")) {
-            long b = atol(argv[++i]);
-            if (b > 0 && b <= 1000000000L) budget = b;
-        }
-        else if (!strcmp(argv[i], "-a")) {
-            long a = atol(argv[++i]);
-            if (a > 0 && a <= 10000000L) attempts = a;
-        }
-        else if (!strcmp(argv[i], "--svg")) {
-            const char *s = argv[++i];
-            if (strstr(s, "..") != NULL) {
-                fprintf(stderr, "error: unsafe path for --svg\n");
-                return 1;
-            }
-            svg = s;
-        }
+        else if (!strcmp(argv[i], "-b")) budget = atol(argv[++i]);
+        else if (!strcmp(argv[i], "-a")) attempts = atol(argv[++i]);
+        else if (!strcmp(argv[i], "--svg")) svg = argv[++i];
         else if (!strcmp(argv[i], "-m")) {
             for (int s = 0; s < TG_NS; s++) tg_enabled[s] = 0;
             for (char *p = argv[++i]; *p; p++) if (*p >= '0' && *p < '0' + TG_NS) tg_enabled[*p - '0'] = 1;
@@ -154,40 +135,28 @@ int main(int argc, char **argv)
             if (budget && steps >= budget) {
                 if (attempts && att >= attempts) { if (!quiet) fprintf(stderr, "gave up after %ld steps\n", tg_nodes); return 4; }
                 att++; steps = 0;
-                tg_reset();
-                uint64_t att_seed = seed;
-                for (int k = 0; k < (int)(att & 0x3fff); k++) att_seed += 7919ULL;
-                tg_reseed(att_seed);
+                tg_reset(); tg_reseed(seed + (uint64_t)att * 7919ULL);
             }
         }
     } else {
         for (;; att++) {
             if (!tg_pave(rich, pent)) { fprintf(stderr, "paving failed\n"); return 2; }
             tg_path_begin();
-            long limit = 100000L;
-            for (int t = 0; t < tg_nt && t < 2000; t++) limit += 2000L;
+            long limit = 2000L * tg_nt + 100000;
             int r = TG_NONE;
             for (steps = 0; steps < limit && r != TG_SOLVED; steps++) r = tg_path_step();
             if (r == TG_SOLVED) break;
             /* a paving whose groove will not close is abandoned for a fresh one */
             if (attempts && att >= attempts) { if (!quiet) fprintf(stderr, "gave up after %ld steps\n", tg_nodes); return 4; }
-            uint64_t att_seed = seed;
-            for (int k = 0; k < (int)(att & 0x3fff); k++) att_seed += 7919ULL;
-            tg_reseed(att_seed);
+            tg_reseed(seed + (uint64_t)att * 7919ULL);
         }
     }
     char msg[200];
     int bad = tg_verify(msg, sizeof msg);
     if (bad) { fprintf(stderr, "internal error: solution failed verification: %s\n", msg); return 5; }
-    if (tg_nt <= 0 || tg_nt > 100000) { fprintf(stderr, "invalid tile count\n"); return 1; }
-    int *order = calloc((size_t)tg_nt, sizeof(int));
-    int *in = calloc((size_t)tg_nt, sizeof(int));
-    int *out = calloc((size_t)tg_nt, sizeof(int));
-    if (!order || !in || !out) {
-        fprintf(stderr, "out of memory\n");
-        free(order); free(in); free(out);
-        return 1;
-    }
+    int *order = malloc(sizeof(int) * tg_nt * 3);
+    if (!order) { fprintf(stderr, "out of memory\n"); return 1; }
+    int *in = order + tg_nt, *out = in + tg_nt;
     int len = tg_path(order, in, out);
     {
         printf("D %d", n);
@@ -198,8 +167,6 @@ int main(int argc, char **argv)
     }
     if (svg) write_svg(svg, order, in, out, len);
     free(order);
-    free(in);
-    free(out);
     if (!quiet) {
         int cnt[TG_NS] = {0};
         for (int i = 0; i < tg_nt; i++) cnt[tg_tile[i].s]++;

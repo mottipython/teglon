@@ -949,39 +949,25 @@ static double poly_area(const TgTile *t)
     for (int j = 0; j < t->n; j++) { int k = (j + 1) % t->n; a += t->x[j] * t->y[k] - t->x[k] * t->y[j]; }
     return a / 2;
 }
+#define FAIL(code, ...) do { if (msg) snprintf(msg, msglen, __VA_ARGS__); free(seen); return code; } while (0)
 int tg_verify(char *msg, int msglen)
 {
-    int ret = 0;
     char *seen = NULL;
     double area = 0, want = 2.5 * tg_side * tg_side / tan(M_PI / 10);
     for (int i = 0; i < nt; i++) {
         const TgTile *t = &T[i];
-        if (tg_strict && tg_fixed[t->s] && !((t->a == tg_ga[t->s] && t->b == tg_gb[t->s]) || (t->a == tg_gb[t->s] && t->b == tg_ga[t->s]))) {
-            if (msg) snprintf(msg, msglen, "tile %d has the wrong groove for its mould", i);
-            return 1;
-        }
+        if (tg_strict && tg_fixed[t->s] && !((t->a == tg_ga[t->s] && t->b == tg_gb[t->s]) || (t->a == tg_gb[t->s] && t->b == tg_ga[t->s])))
+            FAIL(1, "tile %d has the wrong groove for its mould", i);
         for (int j = 0; j < t->n; j++) {
-            if (inside(t->x[j], t->y[j]) < 0) {
-                if (msg) snprintf(msg, msglen, "tile %d sticks out of the decagon", i);
-                return 2;
-            }
+            if (inside(t->x[j], t->y[j]) < 0) FAIL(2, "tile %d sticks out of the decagon", i);
             int k = (j + 1) % t->n;
-            if (fabs(hypot(t->x[k] - t->x[j], t->y[k] - t->y[j]) - 1) > 1e-6) {
-                if (msg) snprintf(msg, msglen, "tile %d is not equilateral", i);
-                return 3;
-            }
+            if (fabs(hypot(t->x[k] - t->x[j], t->y[k] - t->y[j]) - 1) > 1e-6) FAIL(3, "tile %d is not equilateral", i);
         }
         area += poly_area(t);
         for (int o = 0; o < i; o++)
-            if (overlap(t, &T[o]) == 2) {
-                if (msg) snprintf(msg, msglen, "tiles %d and %d overlap", o, i);
-                return 4;
-            }
+            if (overlap(t, &T[o]) == 2) FAIL(4, "tiles %d and %d overlap", o, i);
     }
-    if (fabs(area - want) > 1e-6) {
-        if (msg) snprintf(msg, msglen, "paved area %.6f, decagon area %.6f", area, want);
-        return 5;
-    }
+    if (fabs(area - want) > 1e-6) FAIL(5, "paved area %.6f, decagon area %.6f", area, want);
     /* walk the groove from the first vertex, matching sides by their midpoints */
     int cur = -1, side = -1, starts = 0;
     for (int i = 0; i < nt; i++) {
@@ -993,35 +979,21 @@ int tg_verify(char *msg, int msglen)
             if (inside(mx, my) != 0) continue;
             double d0 = hypot(mx - tg_corner_x[0], my - tg_corner_y[0]), d5 = hypot(mx - tg_corner_x[5], my - tg_corner_y[5]);
             if (fabs(d0 - 0.5) < 1e-6) { cur = i; side = k; starts++; }
-            else if (fabs(d5 - 0.5) > 1e-6) {
-                if (msg) snprintf(msg, msglen, "groove of tile %d runs into the rim", i);
-                return 6;
-            }
+            else if (fabs(d5 - 0.5) > 1e-6) FAIL(6, "groove of tile %d runs into the rim", i);
         }
     }
-    if (starts != 1) {
-        if (msg) snprintf(msg, msglen, "%d groove ends at the first vertex, expected 1", starts);
-        return 7;
-    }
+    if (starts != 1) FAIL(7, "%d groove ends at the first vertex, expected 1", starts);
     seen = calloc((size_t)nt + 1, 1);
     if (!seen) return -1;
     int count = 0, done = 0;
     while (!done) {
         const TgTile *t = &T[cur];
-        if (seen[cur]) {
-            if (msg) snprintf(msg, msglen, "groove revisits tile %d", cur);
-            ret = 8;
-            goto cleanup;
-        }
+        if (seen[cur]) FAIL(8, "groove revisits tile %d", cur);
         seen[cur] = 1; count++;
         int o = (side == t->a) ? t->b : t->a, o1 = (o + 1) % t->n;
         double mx = (t->x[o] + t->x[o1]) / 2, my = (t->y[o] + t->y[o1]) / 2;
         if (inside(mx, my) == 0) {
-            if (fabs(hypot(mx - tg_corner_x[5], my - tg_corner_y[5]) - 0.5) > 1e-6) {
-                if (msg) snprintf(msg, msglen, "groove ends at the rim away from the last vertex");
-                ret = 9;
-                goto cleanup;
-            }
+            if (fabs(hypot(mx - tg_corner_x[5], my - tg_corner_y[5]) - 0.5) > 1e-6) FAIL(9, "groove ends at the rim away from the last vertex");
             done = 1; break;
         }
         int next = -1, nside = -1;
@@ -1033,27 +1005,13 @@ int tg_verify(char *msg, int msglen)
                 if (fabs((q->x[k] + q->x[k1]) / 2 - mx) < 1e-6 && fabs((q->y[k] + q->y[k1]) / 2 - my) < 1e-6) { next = i; nside = k; break; }
             }
         }
-        if (next < 0) {
-            if (msg) snprintf(msg, msglen, "groove of tile %d leads onto bare ground", cur);
-            ret = 10;
-            goto cleanup;
-        }
-        if (nside != T[next].a && nside != T[next].b) {
-            if (msg) snprintf(msg, msglen, "groove of tile %d runs into a wall of tile %d", cur, next);
-            ret = 11;
-            goto cleanup;
-        }
+        if (next < 0) FAIL(10, "groove of tile %d leads onto bare ground", cur);
+        if (nside != T[next].a && nside != T[next].b) FAIL(11, "groove of tile %d runs into a wall of tile %d", cur, next);
         cur = next; side = nside;
     }
-    if (count != nt) {
-        if (msg) snprintf(msg, msglen, "groove crosses %d of %d tiles", count, nt);
-        ret = 12;
-        goto cleanup;
-    }
-    if (msg) snprintf(msg, msglen, "ok");
-    ret = 0;
-
-cleanup:
+    if (count != nt) FAIL(12, "groove crosses %d of %d tiles", count, nt);
     free(seen);
-    return ret;
+    if (msg) snprintf(msg, msglen, "ok");
+    return 0;
 }
+#undef FAIL
