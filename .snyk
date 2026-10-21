@@ -1,0 +1,9 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.0
+exclude:
+  code:
+    - src/stb_vorbis.c
+    - src/stb_image.h
+    - tools/**
+  global:
+    - tools/Containerfile
