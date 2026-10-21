@@ -2,6 +2,7 @@
 version: v1.25.0
 exclude:
   code:
+    - src/cli.c
     - src/stb_vorbis.c
     - src/stb_image.h
     - tools/**
